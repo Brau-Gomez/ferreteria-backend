@@ -1,0 +1,73 @@
+spring:
+  application:
+    name: user-service
+  datasource:
+    url: ${DB_USER_URL:jdbc:postgresql://localhost:5434/ferreteria_user}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    schemas: public
+    create-schemas: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8081}
+          jwk-set-uri: ${JWT_JWK_SET_URI:http://localhost:8081/.well-known/jwks.json}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASS:guest}
+  cloud:
+    stream:
+      defaultBinder: rabbit
+      bindings:
+        usuarioCreado-out-0:
+          destination: usuario.creado
+          content-type: application/json
+        usuarioActualizado-out-0:
+          destination: usuario.actualizado
+          content-type: application/json
+        usuarioEliminado-out-0:
+          destination: usuario.eliminado
+          content-type: application/json
+
+server:
+  port: ${SERVER_PORT:8084}
+  servlet:
+    context-path: /api
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.ferreteria.user_service: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: WARN

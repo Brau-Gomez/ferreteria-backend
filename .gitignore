@@ -1,0 +1,25 @@
+# Environment
+.env
+.env.local
+
+# Maven
+/target/
+/**/target/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build output
+*.jar
+*.war
+*.ear

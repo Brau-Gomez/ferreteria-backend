@@ -1,0 +1,331 @@
+name: CI/CD Backend
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'ferreteria-backend/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ferreteria-backend/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ferreteria-backend
+
+    services:
+      postgres-auth:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ferreteria_auth
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5431:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres-product:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ferreteria_product
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres-order:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ferreteria_order
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres-user:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ferreteria_user
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres-catalog:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ferreteria_catalog
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5435:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres-cart:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ferreteria_cart
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5436:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics check_running"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Build with Maven
+        env:
+          DB_AUTH_URL: jdbc:postgresql://localhost:5431/ferreteria_auth
+          DB_PRODUCT_URL: jdbc:postgresql://localhost:5432/ferreteria_product
+          DB_ORDER_URL: jdbc:postgresql://localhost:5433/ferreteria_order
+          DB_USER_URL: jdbc:postgresql://localhost:5434/ferreteria_user
+          DB_CATALOG_URL: jdbc:postgresql://localhost:5435/ferreteria_catalog
+          DB_CART_URL: jdbc:postgresql://localhost:5436/ferreteria_cart
+          DB_USER: postgres
+          DB_PASS: postgres
+        run: ./mvnw -B verify --file pom.xml -DskipTests=false
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: **/target/surefire-reports/
+
+  docker:
+    name: Build & Push Docker Images
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    defaults:
+      run:
+        working-directory: ferreteria-backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for auth-service
+        id: meta-auth
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/auth-service
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push auth-service
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./auth-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta-auth.outputs.tags }}
+          labels: ${{ steps.meta-auth.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for product-service
+        id: meta-product
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/product-service
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push product-service
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./product-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta-product.outputs.tags }}
+          labels: ${{ steps.meta-product.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for order-service
+        id: meta-order
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/order-service
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push order-service
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./order-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta-order.outputs.tags }}
+          labels: ${{ steps.meta-order.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for user-service
+        id: meta-user
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/user-service
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push user-service
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./user-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta-user.outputs.tags }}
+          labels: ${{ steps.meta-user.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for catalog-service
+        id: meta-catalog
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/catalog-service
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push catalog-service
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./catalog-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta-catalog.outputs.tags }}
+          labels: ${{ steps.meta-catalog.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for cart-service
+        id: meta-cart
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/cart-service
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push cart-service
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./cart-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta-cart.outputs.tags }}
+          labels: ${{ steps.meta-cart.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for api-gateway
+        id: meta-gateway
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/api-gateway
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push api-gateway
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./api-gateway/Dockerfile
+          push: true
+          tags: ${{ steps.meta-gateway.outputs.tags }}
+          labels: ${{ steps.meta-gateway.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

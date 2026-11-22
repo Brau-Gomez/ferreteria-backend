@@ -1,0 +1,11 @@
+# Contexto de build = raíz del repo (ver Dockerfiles). Se excluye lo que no debe viajar a la imagen.
+**/target
+**/.git
+**/.idea
+**/*.iml
+**/HELP.md
+.env
+docker-compose.yml
+docker/
+.github/
+docs/

@@ -1,0 +1,98 @@
+spring:
+  application:
+    name: order-service
+  datasource:
+    url: ${DB_ORDER_URL:jdbc:postgresql://localhost:5433/ferreteria_order}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    schemas: public
+    create-schemas: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8081}
+          jwk-set-uri: ${JWT_JWK_SET_URI:http://localhost:8081/.well-known/jwks.json}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASS:guest}
+    virtual-host: /
+    connection-timeout: 10000
+    listener:
+      simple:
+        concurrency: 5
+        max-concurrency: 10
+        prefetch: 10
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 2000
+          max-interval: 10000
+          multiplier: 2
+  cloud:
+    stream:
+      defaultBinder: rabbit
+      bindings:
+        ordenCreada-out-0:
+          destination: orden.creada
+          content-type: application/json
+          producer:
+            required-groups: order-service
+        ordenEstadoCambiado-out-0:
+          destination: orden.estado_cambiado
+          content-type: application/json
+          producer:
+            required-groups: order-service
+      rabbit:
+        bindings:
+          ordenCreada-out-0:
+            producer:
+              routing-key: orden.creada
+              exchange-type: topic
+          ordenEstadoCambiado-out-0:
+            producer:
+              routing-key: orden.estado_cambiado
+              exchange-type: topic
+
+server:
+  port: ${SERVER_PORT:8083}
+  servlet:
+    context-path: /api
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.ferreteria.order_service: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: WARN
+    org.springframework.cloud.stream: DEBUG
