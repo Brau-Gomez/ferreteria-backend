@@ -45,7 +45,7 @@ Backend basado en microservicios con Spring Boot para la plataforma de comercio 
 | PostgreSQL Auth | 5431 |
 | PostgreSQL Product | 5432 |
 | PostgreSQL Order | 5433 |
-| PostgreSQL User | 5434 |
+| PostgreSQL User | 5437 (5434 reservado por otro entorno Docker) |
 | PostgreSQL Catalog | 5435 |
 | PostgreSQL Cart | 5436 |
 | RabbitMQ AMQP | 5672 |
