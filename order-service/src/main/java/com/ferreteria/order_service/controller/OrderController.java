@@ -22,6 +22,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 @RestController
@@ -50,12 +51,11 @@ public class OrderController {
             @Parameter(description = "ID de la orden") @PathVariable UUID id,
             @AuthenticationPrincipal Jwt jwt) {
         UUID userId = getUserIdFromToken(jwt);
-        boolean isAdmin = jwt.getClaimAsStringList("roles").contains("ADMIN");
-        return ResponseEntity.ok(orderService.obtenerPorId(id, userId, isAdmin));
+        return ResponseEntity.ok(orderService.obtenerPorId(id, userId, esAdmin(jwt)));
     }
 
     @GetMapping
-    @Operation(summary = "Listar órdenes del usuario autenticado")
+    @Operation(summary = "Listar órdenes: propias para clientes, todas para ADMIN/VENDEDOR")
     public ResponseEntity<PageResponseDTO<OrderResponseDTO>> listarMisOrdenes(
             @Parameter(description = "Número de página (0-based)") @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
@@ -63,6 +63,10 @@ public class OrderController {
             @Parameter(description = "Dirección de orden (asc/desc)") @RequestParam(defaultValue = "desc") String sortDir,
             @Parameter(description = "Filtrar por estado") @RequestParam(required = false) String status,
             @AuthenticationPrincipal Jwt jwt) {
+        // El panel admin (también accesible para vendedores) alimenta esta misma ruta.
+        if (esAdmin(jwt) || esVendedor(jwt)) {
+            return ResponseEntity.ok(orderService.listarTodas(page, size, sortBy, sortDir, status));
+        }
         UUID userId = getUserIdFromToken(jwt);
         return ResponseEntity.ok(orderService.listarPorUsuario(userId, page, size, sortBy, sortDir, status));
     }
@@ -95,7 +99,7 @@ public class OrderController {
             @Parameter(description = "ID de la orden") @PathVariable UUID id,
             @Parameter(description = "Método de pago") @RequestParam Payment.PaymentMethod method,
             @Parameter(description = "Monto") @RequestParam BigDecimal amount,
-            @Parameter(description = "ID de transacción del gateway") @RequestParam(required = false) String transactionId) {
+            @Parameter(description = "ID de transacción del gateway") @RequestParam String transactionId) {
         return ResponseEntity.ok(orderService.agregarPago(id, method, amount, transactionId));
     }
 
@@ -106,13 +110,31 @@ public class OrderController {
             @Parameter(description = "Motivo de cancelación") @RequestParam String motivo,
             @AuthenticationPrincipal Jwt jwt) {
         UUID userId = getUserIdFromToken(jwt);
-        boolean isAdmin = jwt.getClaimAsStringList("roles").contains("ADMIN");
-        orderService.cancelar(id, motivo, userId, isAdmin);
+        orderService.cancelar(id, motivo, userId, esAdmin(jwt));
         return ResponseEntity.noContent().build();
     }
 
+    // auth-service identifica al usuario con un id numérico en "sub", pero orders.user_id es UUID.
+    // Se deriva un UUID estable del subject para no romper el esquema ni las consultas por usuario.
     private UUID getUserIdFromToken(Jwt jwt) {
         String sub = jwt.getClaimAsString("sub");
-        return UUID.fromString(sub);
+        if (sub == null || sub.isBlank()) {
+            throw new com.ferreteria.order_service.exception.BadRequestException("El token no contiene el usuario");
+        }
+        try {
+            return UUID.fromString(sub);
+        } catch (IllegalArgumentException ex) {
+            return UUID.nameUUIDFromBytes(("ferreteria-user:" + sub).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    private boolean esAdmin(Jwt jwt) {
+        var roles = jwt.getClaimAsStringList("roles");
+        return roles != null && roles.contains("ADMIN");
+    }
+
+    private boolean esVendedor(Jwt jwt) {
+        var roles = jwt.getClaimAsStringList("roles");
+        return roles != null && roles.contains("VENDEDOR");
     }
 }

@@ -28,8 +28,8 @@ public class OrderResponseDTO {
     private BigDecimal shippingCost;
     private BigDecimal total;
     private String shippingAddress;
-    private UUID shippingCommuneId;
-    private UUID shippingRegionId;
+    private String shippingCommuneId;
+    private String shippingRegionId;
     private String trackingNumber;
     private String carrier;
     private String notes;
@@ -37,6 +37,7 @@ public class OrderResponseDTO {
     private List<OrderItemResponseDTO> items;
     private List<ShipmentResponseDTO> shipments;
     private List<PaymentResponseDTO> payments;
+    private BoletaSimuladaDTO boleta;
     private Instant createdAt;
     private Instant updatedAt;
     private Instant confirmedAt;
@@ -83,6 +84,7 @@ public class OrderResponseDTO {
                     .map(PaymentResponseDTO::fromEntity)
                     .toList());
         }
+        dto.setBoleta(BoletaSimuladaDTO.fromEntity(order));
         return dto;
     }
 

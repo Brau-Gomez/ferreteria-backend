@@ -20,11 +20,13 @@ public class OrderRequestDTO {
     @Size(max = 500, message = "La dirección no puede exceder 500 caracteres")
     private String shippingAddress;
 
-    @NotNull(message = "La comuna de envío es obligatoria")
-    private UUID shippingCommuneId;
+    @NotBlank(message = "La comuna de envío es obligatoria")
+    @Pattern(regexp = "\\d+", message = "El ID de comuna debe ser numérico")
+    private String shippingCommuneId;
 
-    @NotNull(message = "La región de envío es obligatoria")
-    private UUID shippingRegionId;
+    @NotBlank(message = "La región de envío es obligatoria")
+    @Pattern(regexp = "\\d+", message = "El ID de región debe ser numérico")
+    private String shippingRegionId;
 
     @Size(max = 1000, message = "Las notas no pueden exceder 1000 caracteres")
     private String notes;

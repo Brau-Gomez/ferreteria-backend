@@ -1,5 +1,7 @@
 package com.ferreteria.order_service.exception;
 
+import com.ferreteria.order_service.client.CatalogClient;
+import com.ferreteria.order_service.client.ProductClient;
 import com.ferreteria.order_service.dto.ApiResponse;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
@@ -36,6 +38,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<String>> handleBadRequest(RuntimeException ex) {
         log.warn("Solicitud inválida: {}", ex.getMessage());
         return ResponseEntity.badRequest().body(ApiResponse.error("INVALID_REQUEST", ex.getMessage()));
+    }
+
+    @ExceptionHandler({
+            ProductClient.ProductUnavailableException.class,
+            CatalogClient.CatalogUnavailableException.class
+    })
+    public ResponseEntity<ApiResponse<String>> handleServiceUnavailable(RuntimeException ex) {
+        log.warn("Servicio externo no disponible: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error("DEPENDENCY_UNAVAILABLE", ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -1,5 +1,7 @@
 package com.ferreteria.order_service.service;
 
+import com.ferreteria.order_service.client.CatalogClient;
+import com.ferreteria.order_service.client.ProductClient;
 import com.ferreteria.order_service.dto.OrderRequestDTO;
 import com.ferreteria.order_service.dto.OrderResponseDTO;
 import com.ferreteria.order_service.dto.PageResponseDTO;
@@ -27,8 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -41,32 +45,37 @@ public class OrderService {
     private final ShipmentRepository shipmentRepository;
     private final PaymentRepository paymentRepository;
     private final ApplicationEventPublisher eventPublisher;
-
-    // Feign client to product-service would be injected here
-    // private final ProductClient productClient;
+    private final ProductClient productClient;
+    private final CatalogClient catalogClient;
 
     public OrderResponseDTO crear(UUID userId, OrderRequestDTO request, String idempotencyKey) {
-        // Verificar idempotencia
-        if (idempotencyKey != null && orderRepository.existsByIdempotencyKey(idempotencyKey)) {
-            throw new IdempotencyException("Ya existe una orden con esa clave de idempotencia");
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            if (orderRepository.findByIdempotencyKey(idempotencyKey).isPresent()) {
+                return orderRepository.findByIdempotencyKeyAndUserId(idempotencyKey, userId)
+                        .map(OrderResponseDTO::fromEntity)
+                        .orElseThrow(() -> new IdempotencyException("La clave de idempotencia pertenece a otra cuenta"));
+            }
         }
 
-        // Validar y crear items (aquí se llamaría a product-service para validar stock y precio)
+        validarEnvio(request);
+
         List<OrderItem> items = request.getItems().stream().map(itemReq -> {
-            // TODO: Llamar a product-service via Feign para validar existencia, stock y obtener precio
-            // ProductDTO product = productClient.getProduct(itemReq.getProductCode());
-            // if (product.getStock() < itemReq.getQuantity()) throw new BadRequestException("Stock insuficiente");
-            //
-            // Por ahora usamos datos mock:
-            BigDecimal unitPrice = BigDecimal.valueOf(10000); // Precio mock
+            ProductClient.ProductView product = productClient.getByCode(itemReq.getProductCode());
+            if (!product.active()) {
+                throw new BadRequestException("El producto está inactivo: " + itemReq.getProductCode());
+            }
+            if (product.stock() < itemReq.getQuantity()) {
+                throw new BadRequestException("Stock insuficiente para " + itemReq.getProductCode());
+            }
+            BigDecimal unitPrice = product.price();
             return OrderItem.builder()
                     .productCode(itemReq.getProductCode())
-                    .productName("Producto " + itemReq.getProductCode()) // Nombre mock
+                    .productName(product.name())
                     .unitPrice(unitPrice)
                     .quantity(itemReq.getQuantity())
                     .totalPrice(unitPrice.multiply(BigDecimal.valueOf(itemReq.getQuantity())))
                     .build();
-        }).toList();
+        }).collect(Collectors.toCollection(ArrayList::new)); // Hibernate necesita una colección mutable
 
         // Calcular totales
         BigDecimal subtotal = items.stream()
@@ -93,13 +102,49 @@ public class OrderService {
 
         items.forEach(item -> item.setOrder(order));
 
-        Order guardada = orderRepository.save(order);
-        log.info("Orden creada id={} userId={} total={}", guardada.getId(), userId, total);
+        List<OrderItem> reservedItems = new java.util.ArrayList<>();
+        try {
+            for (OrderItem item : items) {
+                productClient.reserve(item.getProductCode(), item.getQuantity());
+                reservedItems.add(item);
+            }
+            Order guardada = orderRepository.save(order);
+            registrarPagoSimulado(guardada);
+            log.info("Orden creada id={} userId={} total={}", guardada.getId(), userId, total);
+            publishOrderCreatedEvent(guardada);
+            return OrderResponseDTO.fromEntity(guardada);
+        } catch (RuntimeException ex) {
+            for (OrderItem item : reservedItems) {
+                try {
+                    productClient.release(item.getProductCode(), item.getQuantity());
+                } catch (RuntimeException releaseEx) {
+                    log.error("No se pudo compensar stock de {}", item.getProductCode(), releaseEx);
+                }
+            }
+            throw ex;
+        }
+    }
 
-        // Publicar evento orden.creada
-        publishOrderCreatedEvent(guardada);
+    /**
+     * Pago simulado: no hay pasarela real, así que el cobro se aprueba en el servidor
+     * y la orden queda CONFIRMED. La boleta se arma con los datos ya persistidos.
+     */
+    private void registrarPagoSimulado(Order order) {
+        Payment pago = Payment.builder()
+                .order(order)
+                .status(Payment.PaymentStatus.COMPLETED)
+                .paymentMethod(Payment.PaymentMethod.CREDIT_CARD)
+                .amount(order.getTotal())
+                .transactionId("SIM-" + UUID.randomUUID())
+                .gatewayResponse("Pago simulado aprobado")
+                .paidAt(Instant.now())
+                .build();
+        paymentRepository.save(pago);
+        order.getPayments().add(pago);
 
-        return OrderResponseDTO.fromEntity(guardada);
+        order.setStatus(Order.OrderStatus.CONFIRMED);
+        order.setConfirmedAt(Instant.now());
+        orderRepository.save(order);
     }
 
     @Transactional(readOnly = true)
@@ -153,7 +198,7 @@ public class OrderService {
     }
 
     public OrderResponseDTO actualizarEstado(UUID id, Order.OrderStatus nuevoEstado) {
-        Order order = obtenerOrden(id);
+        Order order = obtenerOrdenParaActualizar(id);
         Order.OrderStatus estadoAnterior = order.getStatus();
 
         // Validar transición de estado
@@ -172,33 +217,42 @@ public class OrderService {
     }
 
     public OrderResponseDTO agregarPago(UUID orderId, Payment.PaymentMethod metodo, BigDecimal monto, String transactionId) {
-        Order order = obtenerOrden(orderId);
+        if (monto == null || monto.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("El monto del pago debe ser mayor a cero");
+        }
+        if (transactionId == null || transactionId.isBlank()) {
+            throw new BadRequestException("La transacción de pago es obligatoria");
+        }
+
+        Order order = obtenerOrdenParaActualizar(orderId);
+        if (order.getStatus() == Order.OrderStatus.CANCELLED
+                || order.getStatus() == Order.OrderStatus.DELIVERED) {
+            throw new BadRequestException("No se pueden registrar pagos para una orden " + order.getStatus());
+        }
+
+        if (paymentRepository.findByTransactionId(transactionId).isPresent()) {
+            throw new IdempotencyException("Ya existe un pago con ese transactionId");
+        }
+
+        BigDecimal totalPagado = order.getPayments().stream()
+                .filter(p -> p.getStatus() == Payment.PaymentStatus.COMPLETED)
+                .map(Payment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal saldoPendiente = order.getTotal().subtract(totalPagado);
+        if (monto.compareTo(saldoPendiente) > 0) {
+            throw new BadRequestException("El monto excede el saldo pendiente de la orden");
+        }
 
         Payment payment = Payment.builder()
                 .order(order)
                 .paymentMethod(metodo)
                 .amount(monto)
                 .transactionId(transactionId)
-                .status(Payment.PaymentStatus.PROCESSING)
+                .status(Payment.PaymentStatus.PENDING)
                 .build();
 
         order.getPayments().add(payment);
         paymentRepository.save(payment);
-
-        // Si el pago cubre el total, marcar como completado
-        BigDecimal totalPagado = order.getPayments().stream()
-                .filter(p -> p.getStatus() == Payment.PaymentStatus.COMPLETED)
-                .map(Payment::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        if (totalPagado.compareTo(order.getTotal()) >= 0) {
-            payment.setStatus(Payment.PaymentStatus.COMPLETED);
-            payment.setPaidAt(Instant.now());
-            if (order.getStatus() == Order.OrderStatus.PENDING) {
-                order.setStatus(Order.OrderStatus.CONFIRMED);
-                order.setConfirmedAt(Instant.now());
-            }
-        }
 
         orderRepository.save(order);
         log.info("Pago agregado ordenId={} monto={} metodo={}", orderId, monto, metodo);
@@ -212,18 +266,22 @@ public class OrderService {
     }
 
     public void cancelar(UUID id, String motivo, UUID userId, boolean isAdmin) {
-        Order order = obtenerOrden(id);
+        Order order = obtenerOrdenParaActualizar(id);
         verificarPropietarioOAdmin(order, userId, isAdmin);
         cancelarOrden(order, motivo);
     }
 
     private void cancelarOrden(Order order, String motivo) {
         UUID id = order.getId();
+        Order.OrderStatus estadoAnterior = order.getStatus();
 
         if (order.getStatus() == Order.OrderStatus.DELIVERED || order.getStatus() == Order.OrderStatus.CANCELLED) {
             throw new BadRequestException("No se puede cancelar una orden en estado " + order.getStatus());
         }
 
+        for (OrderItem item : order.getItems()) {
+            productClient.release(item.getProductCode(), item.getQuantity());
+        }
         order.setStatus(Order.OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
         order.setNotes((order.getNotes() != null ? order.getNotes() + "\n" : "") + "Cancelada: " + motivo);
@@ -231,7 +289,7 @@ public class OrderService {
         orderRepository.save(order);
         log.info("Orden cancelada id={} motivo={}", id, motivo);
 
-        publishOrderStatusChangedEvent(order, Order.OrderStatus.CANCELLED);
+        publishOrderStatusChangedEvent(order, estadoAnterior);
     }
 
     private void verificarPropietarioOAdmin(Order order, UUID userId, boolean isAdmin) {
@@ -240,23 +298,74 @@ public class OrderService {
         }
     }
 
+    private void validarEnvio(OrderRequestDTO request) {
+        long communeId;
+        long regionId;
+        try {
+            communeId = Long.parseLong(request.getShippingCommuneId());
+            regionId = Long.parseLong(request.getShippingRegionId());
+        } catch (NumberFormatException ex) {
+            throw new BadRequestException("Los IDs de región y comuna deben corresponder al catálogo");
+        }
+
+        CatalogClient.ComunaView commune = catalogClient.getComuna(communeId);
+        if (commune == null || !Boolean.TRUE.equals(commune.active())) {
+            throw new BadRequestException("La comuna no existe o está inactiva");
+        }
+        if (commune.region() == null
+                || commune.region().id() == null
+                || commune.region().id() != regionId
+                || !Boolean.TRUE.equals(commune.region().active())) {
+            throw new BadRequestException("La comuna no pertenece a la región indicada");
+        }
+        CatalogClient.CoverageView coverage = catalogClient.getCoverage(communeId);
+        if (coverage == null || !coverage.covered()) {
+            throw new BadRequestException("La comuna no tiene cobertura de despacho");
+        }
+    }
+
     private Order obtenerOrden(UUID id) {
         return orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + id));
     }
 
-    private BigDecimal calculateShippingCost(BigDecimal subtotal, UUID communeId) {
-        // Envío gratis sobre $50.000
-        if (subtotal.compareTo(BigDecimal.valueOf(50000)) >= 0) {
+    private Order obtenerOrdenParaActualizar(UUID id) {
+        return orderRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada con ID: " + id));
+    }
+
+    private BigDecimal calculateShippingCost(BigDecimal subtotal, String communeId) {
+        long commune;
+        try {
+            commune = Long.parseLong(communeId);
+        } catch (NumberFormatException ex) {
+            throw new BadRequestException("El ID de comuna no corresponde al catálogo actual");
+        }
+        CatalogClient.CoverageView coverage = catalogClient.getCoverage(commune);
+        if (coverage == null || !coverage.covered()) {
+            throw new BadRequestException("La comuna no tiene cobertura de despacho");
+        }
+        if (coverage.deliveryCost() == null) {
+            throw new BadRequestException("La cobertura no tiene costo de despacho configurado");
+        }
+        if (coverage.minOrderAmount() != null
+                && subtotal.compareTo(coverage.minOrderAmount()) >= 0) {
             return BigDecimal.ZERO;
         }
-        // Costo base por comuna (mock)
-        return BigDecimal.valueOf(5000);
+        return coverage.deliveryCost();
     }
 
     private void validarTransicion(Order.OrderStatus desde, Order.OrderStatus hacia) {
-        // Definir transiciones válidas
-        return; // TODO: Implementar validación de transiciones
+        boolean valida = switch (desde) {
+            case PENDING -> hacia == Order.OrderStatus.CONFIRMED || hacia == Order.OrderStatus.CANCELLED;
+            case CONFIRMED -> hacia == Order.OrderStatus.SHIPPED || hacia == Order.OrderStatus.CANCELLED;
+            case SHIPPED -> hacia == Order.OrderStatus.DELIVERED;
+            case DELIVERED, CANCELLED -> false;
+            default -> false;
+        };
+        if (!valida) {
+            throw new BadRequestException("Transición de estado inválida: " + desde + " -> " + hacia);
+        }
     }
 
     private void actualizarTimestampSegunEstado(Order order, Order.OrderStatus estado) {

@@ -46,11 +46,11 @@ public class Order {
     @Column(name = "shipping_address", columnDefinition = "TEXT")
     private String shippingAddress;
 
-    @Column(name = "shipping_commune_id")
-    private UUID shippingCommuneId;
+    @Column(name = "shipping_commune_id", length = 50)
+    private String shippingCommuneId;
 
-    @Column(name = "shipping_region_id")
-    private UUID shippingRegionId;
+    @Column(name = "shipping_region_id", length = 50)
+    private String shippingRegionId;
 
     @Column(name = "tracking_number", length = 100)
     private String trackingNumber;
@@ -99,10 +99,8 @@ public class Order {
     public enum OrderStatus {
         PENDING,
         CONFIRMED,
-        PROCESSING,
         SHIPPED,
         DELIVERED,
-        CANCELLED,
-        REFUNDED
+        CANCELLED
     }
 }
