@@ -92,10 +92,13 @@ public class AuthService {
             throw new BadRequestException("Refresh token expirado");
         }
 
-        RefreshToken stored = refreshTokenRepository.findByToken(refreshToken)
+        RefreshToken stored = refreshTokenRepository.findByTokenForUpdate(refreshToken)
                 .orElseThrow(() -> new BadRequestException("Refresh token no encontrado"));
 
         if (!stored.isValid()) {
+            if (stored.isRevoked()) {
+                refreshTokenRepository.revokeAllByUserId(stored.getUserId(), Instant.now());
+            }
             throw new BadRequestException("Refresh token revocado o expirado");
         }
 

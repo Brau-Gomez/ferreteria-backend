@@ -46,6 +46,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
 
             String subject = jwtService.getSubject(token);
+            String email = jwtService.getEmail(token);
             List<String> roles = jwtService.getRoles(token);
 
             List<SimpleGrantedAuthority> authorities = roles.stream()
@@ -53,7 +54,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .collect(Collectors.toList());
 
             UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(subject, null, authorities);
+                    new UsernamePasswordAuthenticationToken(email != null ? email : subject, null, authorities);
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
             SecurityContextHolder.getContext().setAuthentication(authentication);

@@ -86,6 +86,42 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
+    void internalRouteIsNotPublishedByGateway() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtService);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/internal/users/profiles").build());
+
+        filter.filter(exchange, ignored -> reactor.core.publisher.Mono.empty()).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void spoofedUserHeadersAreReplacedByValidatedClaims() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtService);
+        String token = crearAccessToken();
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header("X-User-Subject", "otro-usuario")
+                        .header("X-User-Email", "otro@example.com")
+                        .header("X-User-Roles", "ADMIN")
+                        .build());
+
+        GatewayFilterChain chain = exchangeEnviada -> {
+            assertThat(exchangeEnviada.getRequest().getHeaders().get("X-User-Subject"))
+                    .containsExactly("42");
+            assertThat(exchangeEnviada.getRequest().getHeaders().get("X-User-Email"))
+                    .containsExactly("cliente@example.com");
+            assertThat(exchangeEnviada.getRequest().getHeaders().get("X-User-Roles"))
+                    .containsExactly("CLIENTE");
+            return reactor.core.publisher.Mono.empty();
+        };
+
+        filter.filter(exchange, chain).block();
+    }
+
+    @Test
     void publicProductGetDoesNotRequireToken() {
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtService);
         MockServerWebExchange exchange = MockServerWebExchange.from(

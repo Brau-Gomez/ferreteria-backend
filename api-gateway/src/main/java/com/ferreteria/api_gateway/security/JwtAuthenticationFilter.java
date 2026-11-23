@@ -26,6 +26,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
 
+        if (request.getURI().getPath().startsWith("/api/internal/")
+                || request.getURI().getPath().equals("/api/internal")) {
+            exchange.getResponse().setStatusCode(HttpStatus.NOT_FOUND);
+            return exchange.getResponse().setComplete();
+        }
+
         if (esRutaPublica(request)) {
             return chain.filter(exchange);
         }
@@ -52,6 +58,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private boolean esRutaPublica(ServerHttpRequest request) {
         String path = request.getURI().getPath();
 
+        if (path.startsWith("/api/internal/") || path.equals("/api/internal")) {
+            return false;
+        }
+
         if (HttpMethod.OPTIONS.equals(request.getMethod())
                 || path.startsWith("/actuator/")
                 || path.equals("/actuator")
@@ -66,7 +76,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 || path.startsWith("/api/auth/refresh/")
                 || path.equals("/api/auth/validate")
                 || path.startsWith("/api/auth/validate/")
-                || path.startsWith("/api/internal/users")
                 || path.equals("/api/users/v2")
                 || path.startsWith("/api/users/v2/")
                 || path.equals("/api/usuarios/v2")
@@ -101,7 +110,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     }
 
     private ServerHttpRequest agregarHeadersInternos(ServerHttpRequest request, Claims claims) {
-        ServerHttpRequest.Builder builder = request.mutate();
+        ServerHttpRequest.Builder builder = request.mutate()
+                .headers(headers -> {
+                    headers.remove("X-User-Subject");
+                    headers.remove("X-User-Email");
+                    headers.remove("X-User-Roles");
+                });
 
         if (claims.getSubject() != null) {
             builder.header("X-User-Subject", claims.getSubject());

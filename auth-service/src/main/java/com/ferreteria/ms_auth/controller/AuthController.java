@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -67,8 +68,8 @@ public class AuthController {
 
     @GetMapping("/me")
     @Operation(summary = "Obtener perfil del usuario autenticado")
-    public ResponseEntity<UsuarioPerfilDTO> me(@AuthenticationPrincipal UserDetails userDetails) {
-        var user = userService.findByEmail(userDetails.getUsername());
+    public ResponseEntity<UsuarioPerfilDTO> me(@AuthenticationPrincipal String email) {
+        var user = userService.findByEmail(email);
         return ResponseEntity.ok(UsuarioPerfilDTO.builder()
                 .id(user.getId())
                 .username(user.getUsername())
