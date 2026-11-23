@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -40,6 +41,7 @@ public class ProductService {
     private final ApplicationEventPublisher eventPublisher;
 
     public ProductResponseDTO crear(ProductRequestDTO request) {
+        validarStock(request.getStock(), request.getMinStock(), request.getMaxStock());
         if (productRepository.existsByCode(request.getCode())) {
             throw new BadRequestException("Ya existe un producto con ese código");
         }
@@ -117,6 +119,7 @@ public class ProductService {
     }
 
     public ProductResponseDTO actualizar(UUID id, ProductRequestDTO request) {
+        validarStock(request.getStock(), request.getMinStock(), request.getMaxStock());
         Product product = obtenerProducto(id);
 
         if (!product.getCode().equals(request.getCode()) && productRepository.existsByCode(request.getCode())) {
@@ -148,7 +151,8 @@ public class ProductService {
     }
 
     public ProductResponseDTO actualizarStock(UUID id, int cantidad) {
-        Product product = obtenerProducto(id);
+        Product product = productRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con ID: " + id));
         int previousStock = product.getStock();
         int nuevoStock = product.getStock() + cantidad;
         if (nuevoStock < 0) {
@@ -156,6 +160,33 @@ public class ProductService {
         }
         product.setStock(nuevoStock);
         log.info("Stock actualizado producto id={} nuevoStock={}", id, nuevoStock);
+        Product actualizado = productRepository.save(product);
+        eventPublisher.publishEvent(ProductEvents.ProductStockChangedEvent.of(actualizado, previousStock));
+        return ProductResponseDTO.fromEntity(actualizado);
+    }
+
+    public ProductResponseDTO reservarStock(String code, int cantidad) {
+        Product product = productRepository.findByCodeForUpdate(code)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con código " + code));
+        if (!product.isActive()) {
+            throw new BadRequestException("El producto está inactivo");
+        }
+        int previousStock = product.getStock();
+        int nuevoStock = previousStock - cantidad;
+        if (nuevoStock < 0) {
+            throw new BadRequestException("Stock insuficiente. Stock actual: " + previousStock);
+        }
+        product.setStock(nuevoStock);
+        Product actualizado = productRepository.save(product);
+        eventPublisher.publishEvent(ProductEvents.ProductStockChangedEvent.of(actualizado, previousStock));
+        return ProductResponseDTO.fromEntity(actualizado);
+    }
+
+    public ProductResponseDTO liberarStock(String code, int cantidad) {
+        Product product = productRepository.findByCodeForUpdate(code)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con código " + code));
+        int previousStock = product.getStock();
+        product.setStock(previousStock + cantidad);
         Product actualizado = productRepository.save(product);
         eventPublisher.publishEvent(ProductEvents.ProductStockChangedEvent.of(actualizado, previousStock));
         return ProductResponseDTO.fromEntity(actualizado);
@@ -171,12 +202,10 @@ public class ProductService {
     }
 
     public void eliminar(UUID id) {
-        if (!productRepository.existsById(id)) {
-            log.warn("Intento de eliminar producto inexistente id={}", id);
-            throw new ResourceNotFoundException("Producto no encontrado con ID: " + id);
-        }
-        productRepository.deleteById(id);
-        log.info("Producto eliminado id={}", id);
+        Product product = obtenerProducto(id);
+        product.setActive(false);
+        productRepository.save(product);
+        log.info("Producto desactivado id={}", id);
         eventPublisher.publishEvent(ProductEvents.ProductDeletedEvent.of(id));
     }
 
@@ -224,9 +253,26 @@ public class ProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con ID: " + id));
     }
 
+    private void validarStock(Integer stock, Integer minStock, Integer maxStock) {
+        int stockValue = stock != null ? stock : 0;
+        int minValue = minStock != null ? minStock : 0;
+        if (stockValue < 0) {
+            throw new BadRequestException("El stock no puede ser negativo");
+        }
+        if (minValue < 0) {
+            throw new BadRequestException("El stock mínimo no puede ser negativo");
+        }
+        if (maxStock != null && maxStock < minValue) {
+            throw new BadRequestException("El stock mínimo no puede superar el máximo");
+        }
+    }
+
     private Pageable buildPageable(int page, int size, String sortBy, String sortDir) {
         Sort.Direction direction = "desc".equalsIgnoreCase(sortDir) ? Sort.Direction.DESC : Sort.Direction.ASC;
-        String sortField = (sortBy != null && !sortBy.isBlank()) ? sortBy : "createdAt";
-        return PageRequest.of(page, size, Sort.by(direction, sortField));
+        Set<String> allowed = Set.of("createdAt", "name", "code", "price", "stock", "active");
+        String sortField = allowed.contains(sortBy) ? sortBy : "createdAt";
+        int boundedSize = Math.min(Math.max(size, 1), 100);
+        int boundedPage = Math.max(page, 0);
+        return PageRequest.of(boundedPage, boundedSize, Sort.by(direction, sortField));
     }
 }

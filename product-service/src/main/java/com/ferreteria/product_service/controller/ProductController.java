@@ -114,6 +114,23 @@ public class ProductController {
         return ResponseEntity.ok(productService.actualizarEstado(id, active));
     }
 
+    // POST también permitido: el RestClient con JDK HttpClient no soporta PATCH.
+    @RequestMapping(value = "/code/{code}/reserve", method = { RequestMethod.PATCH, RequestMethod.POST })
+    @Operation(summary = "Reservar stock para una orden")
+    public ResponseEntity<ProductResponseDTO> reservarStock(
+            @PathVariable String code,
+            @RequestParam @Min(1) int cantidad) {
+        return ResponseEntity.ok(productService.reservarStock(code, cantidad));
+    }
+
+    @RequestMapping(value = "/code/{code}/release", method = { RequestMethod.PATCH, RequestMethod.POST })
+    @Operation(summary = "Liberar stock reservado por una cancelacion")
+    public ResponseEntity<ProductResponseDTO> liberarStock(
+            @PathVariable String code,
+            @RequestParam @Min(1) int cantidad) {
+        return ResponseEntity.ok(productService.liberarStock(code, cantidad));
+    }
+
     @DeleteMapping("/{id}")
     @Operation(summary = "Eliminar producto")
     @PreAuthorize("hasRole('ADMIN')")

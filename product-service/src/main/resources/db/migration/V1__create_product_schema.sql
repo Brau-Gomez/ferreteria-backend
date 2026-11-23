@@ -60,15 +60,15 @@ CREATE TABLE product_images (
 CREATE INDEX idx_product_images_product ON product_images (product_id);
 CREATE INDEX idx_product_images_primary ON product_images (product_id, is_primary) WHERE is_primary = true;
 
--- Datos semilla: categorías básicas
-INSERT INTO categories (name, description, sort_order) VALUES
-    ('Herramientas Manuales', 'Martillos, destornilladores, llaves, alicates y más', 1),
-    ('Herramientas Eléctricas', 'Taladros, sierras, lijadoras, atornilladores', 2),
-    ('Ferretería General', 'Tornillos, clavos, bisagras, cerraduras, cadena', 3),
-    ('Pintura y Acabados', 'Pinturas, barnices, brochas, rodillos, cintas', 4),
-    ('Plomería', 'Tuberías, grifos, válvulas, conexiones, sanitarios', 5),
-    ('Electricidad', 'Cables, interruptores, tomacorrientes, breakers', 6),
-    ('Seguridad', 'Candados, cámaras, alarmas, extintores, señalización', 7),
-    ('Jardinería', 'Mangueras, macetas, tijeras, rastrillos, fertilizantes', 8),
-    ('Organización', 'Cajas, estantes, ganchos, carros, maletines', 9),
-    ('Equipos de Protección', 'Cascos, guantes, lentes, botas, arneses', 10);
+-- Datos semilla: categorías básicas con UUIDs determinísticos para que V2 los referencie
+INSERT INTO categories (id, name, description, sort_order) VALUES
+    ('88c2ef6f-4c16-4cef-b7ac-ed9ff6747db3', 'Herramientas Manuales', 'Martillos, destornilladores, llaves, alicates y más', 1),
+    ('c5884dae-53fc-41ef-beef-66575573b9b0', 'Herramientas Eléctricas', 'Taladros, sierras, lijadoras, atornilladores', 2),
+    ('9f28a5ad-1571-40f9-8a42-97f9a471a6a6', 'Ferretería General', 'Tornillos, clavos, bisagras, cerraduras, cadena', 3),
+    ('34b64081-c7fb-4d82-b07d-9c1387bb4d04', 'Pintura y Acabados', 'Pinturas, barnices, brochas, rodillos, cintas', 4),
+    ('3061146f-b10d-438a-ae88-bf3ab91189cb', 'Plomería', 'Tuberías, grifos, válvulas, conexiones, sanitarios', 5),
+    ('d8b28a50-330c-40fc-bf2e-90fb84885362', 'Electricidad', 'Cables, interruptores, tomacorrientes, breakers', 6),
+    ('428b0d98-c779-4601-b523-96be174da723', 'Seguridad', 'Candados, cámaras, alarmas, extintores, señalización', 7),
+    ('53c30c50-d4e0-4e88-afa7-2d16b9a40da6', 'Jardinería', 'Mangueras, macetas, tijeras, rastrillos, fertilizantes', 8),
+    ('571bef96-ade7-4497-9fa3-8ac0d3f047f6', 'Organización', 'Cajas, estantes, ganchos, carros, maletines', 9),
+    ('3e1ba677-4d62-461f-b9d1-bc0f86913355', 'Equipos de Protección', 'Cascos, guantes, lentes, botas, arneses', 10);

@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -105,12 +106,10 @@ public class CategoryService {
     }
 
     public void eliminar(UUID id) {
-        if (!categoryRepository.existsById(id)) {
-            log.warn("Intento de eliminar categoría inexistente id={}", id);
-            throw new ResourceNotFoundException("Categoría no encontrada con ID: " + id);
-        }
-        categoryRepository.deleteById(id);
-        log.info("Categoría eliminada id={}", id);
+        Category category = obtenerCategoria(id);
+        category.setActive(false);
+        categoryRepository.save(category);
+        log.info("Categoría desactivada id={}", id);
     }
 
     private Category obtenerCategoria(UUID id) {
@@ -120,7 +119,10 @@ public class CategoryService {
 
     private Pageable buildPageable(int page, int size, String sortBy, String sortDir) {
         Sort.Direction direction = "desc".equalsIgnoreCase(sortDir) ? Sort.Direction.DESC : Sort.Direction.ASC;
-        String sortField = (sortBy != null && !sortBy.isBlank()) ? sortBy : "sortOrder";
-        return PageRequest.of(page, size, Sort.by(direction, sortField));
+        Set<String> allowed = Set.of("createdAt", "name", "code", "sortOrder", "active");
+        String sortField = allowed.contains(sortBy) ? sortBy : "sortOrder";
+        int boundedSize = Math.min(Math.max(size, 1), 100);
+        int boundedPage = Math.max(page, 0);
+        return PageRequest.of(boundedPage, boundedSize, Sort.by(direction, sortField));
     }
 }
