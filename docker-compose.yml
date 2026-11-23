@@ -4,14 +4,14 @@ services:
     container_name: ferreteria-postgres-auth
     environment:
       POSTGRES_DB: ferreteria_auth
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${DB_USER:?DB_USER requerido}
+      POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS requerido}
     ports:
       - "5431:5432"
     volumes:
       - postgres_auth_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:?DB_USER requerido}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -22,14 +22,14 @@ services:
     container_name: ferreteria-postgres-product
     environment:
       POSTGRES_DB: ferreteria_product
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${DB_USER:?DB_USER requerido}
+      POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS requerido}
     ports:
       - "5432:5432"
     volumes:
       - postgres_product_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:?DB_USER requerido}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -40,14 +40,14 @@ services:
     container_name: ferreteria-postgres-order
     environment:
       POSTGRES_DB: ferreteria_order
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${DB_USER:?DB_USER requerido}
+      POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS requerido}
     ports:
       - "5433:5432"
     volumes:
       - postgres_order_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:?DB_USER requerido}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -58,14 +58,14 @@ services:
     container_name: ferreteria-postgres-user
     environment:
       POSTGRES_DB: ferreteria_user
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${DB_USER:?DB_USER requerido}
+      POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS requerido}
     ports:
-      - "5434:5432"
+      - "5437:5432"
     volumes:
       - postgres_user_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:?DB_USER requerido}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -76,14 +76,14 @@ services:
     container_name: ferreteria-postgres-catalog
     environment:
       POSTGRES_DB: ferreteria_catalog
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${DB_USER:?DB_USER requerido}
+      POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS requerido}
     ports:
       - "5435:5432"
     volumes:
       - postgres_catalog_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:?DB_USER requerido}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -94,14 +94,14 @@ services:
     container_name: ferreteria-postgres-cart
     environment:
       POSTGRES_DB: ferreteria_cart
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${DB_USER:?DB_USER requerido}
+      POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS requerido}
     ports:
       - "5436:5432"
     volumes:
       - postgres_cart_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:?DB_USER requerido}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -111,8 +111,8 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: ferreteria-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RABBITMQ_USER requerido}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:?RABBITMQ_PASS requerido}
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -131,18 +131,20 @@ services:
     container_name: ferreteria-auth
     environment:
       SPRING_PROFILES_ACTIVE: dev
+      APP_SEED_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      APP_SEED_DEMO_PASSWORD: ${DEMO_PASSWORD:-}
       DB_AUTH_URL: jdbc:postgresql://postgres-auth:5432/ferreteria_auth
-      DB_USER: postgres
-      DB_PASS: postgres
-      JWT_SECRET: ${JWT_SECRET:-JrJIqjFE+cWRH0onkBeBnIQW1ncfnr65CPK+8Sbh0eE=}
+      DB_USER: ${DB_USER:?DB_USER requerido}
+      DB_PASS: ${DB_PASS:?DB_PASS requerido}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET requerido}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
-      RABBITMQ_USER: guest
-      RABBITMQ_PASS: guest
+      RABBITMQ_USER: ${RABBITMQ_USER:?RABBITMQ_USER requerido}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:?RABBITMQ_PASS requerido}
       JWT_ISSUER_URI: http://auth-service:8081
       JWT_JWK_SET_URI: http://auth-service:8081/.well-known/jwks.json
     ports:
-      - "8081:8081"
+      - "8181:8081"
     depends_on:
       postgres-auth:
         condition: service_healthy
@@ -155,18 +157,20 @@ services:
       dockerfile: product-service/Dockerfile
     container_name: ferreteria-product
     environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET requerido}
       DB_PRODUCT_URL: jdbc:postgresql://postgres-product:5432/ferreteria_product
-      DB_USER: postgres
-      DB_PASS: postgres
+      DB_USER: ${DB_USER:?DB_USER requerido}
+      DB_PASS: ${DB_PASS:?DB_PASS requerido}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
-      RABBITMQ_USER: guest
-      RABBITMQ_PASS: guest
+      RABBITMQ_USER: ${RABBITMQ_USER:?RABBITMQ_USER requerido}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:?RABBITMQ_PASS requerido}
       JWT_ISSUER_URI: http://auth-service:8081
       JWT_JWK_SET_URI: http://auth-service:8081/.well-known/jwks.json
       CATALOG_SERVICE_URL: http://catalog-service:8085
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:?INTERNAL_API_SECRET requerido}
     ports:
-      - "8082:8082"
+      - "8182:8082"
     depends_on:
       postgres-product:
         condition: service_healthy
@@ -181,17 +185,21 @@ services:
       dockerfile: order-service/Dockerfile
     container_name: ferreteria-order
     environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET requerido}
       DB_ORDER_URL: jdbc:postgresql://postgres-order:5432/ferreteria_order
-      DB_USER: postgres
-      DB_PASS: postgres
+      DB_USER: ${DB_USER:?DB_USER requerido}
+      DB_PASS: ${DB_PASS:?DB_PASS requerido}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
-      RABBITMQ_USER: guest
-      RABBITMQ_PASS: guest
+      RABBITMQ_USER: ${RABBITMQ_USER:?RABBITMQ_USER requerido}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:?RABBITMQ_PASS requerido}
+      PRODUCT_SERVICE_URL: http://product-service:8082
+      CATALOG_SERVICE_URL: http://catalog-service:8085
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:?INTERNAL_API_SECRET requerido}
       JWT_ISSUER_URI: http://auth-service:8081
       JWT_JWK_SET_URI: http://auth-service:8081/.well-known/jwks.json
     ports:
-      - "8083:8083"
+      - "8183:8083"
     depends_on:
       postgres-order:
         condition: service_healthy
@@ -206,17 +214,20 @@ services:
       dockerfile: user-service/Dockerfile
     container_name: ferreteria-user
     environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET requerido}
+      APP_SEED_DEMO_PASSWORD: ${DEMO_PASSWORD:-}
       DB_USER_URL: jdbc:postgresql://postgres-user:5432/ferreteria_user
-      DB_USER: postgres
-      DB_PASS: postgres
+      DB_USER: ${DB_USER:?DB_USER requerido}
+      DB_PASS: ${DB_PASS:?DB_PASS requerido}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
-      RABBITMQ_USER: guest
-      RABBITMQ_PASS: guest
+      RABBITMQ_USER: ${RABBITMQ_USER:?RABBITMQ_USER requerido}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:?RABBITMQ_PASS requerido}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:?INTERNAL_API_SECRET requerido}
       JWT_ISSUER_URI: http://auth-service:8081
       JWT_JWK_SET_URI: http://auth-service:8081/.well-known/jwks.json
     ports:
-      - "8084:8084"
+      - "8184:8084"
     depends_on:
       postgres-user:
         condition: service_healthy
@@ -231,17 +242,18 @@ services:
       dockerfile: catalog-service/Dockerfile
     container_name: ferreteria-catalog
     environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET requerido}
       DB_CATALOG_URL: jdbc:postgresql://postgres-catalog:5432/ferreteria_catalog
-      DB_USER: postgres
-      DB_PASS: postgres
+      DB_USER: ${DB_USER:?DB_USER requerido}
+      DB_PASS: ${DB_PASS:?DB_PASS requerido}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
-      RABBITMQ_USER: guest
-      RABBITMQ_PASS: guest
+      RABBITMQ_USER: ${RABBITMQ_USER:?RABBITMQ_USER requerido}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:?RABBITMQ_PASS requerido}
       JWT_ISSUER_URI: http://auth-service:8081
       JWT_JWK_SET_URI: http://auth-service:8081/.well-known/jwks.json
     ports:
-      - "8085:8085"
+      - "8185:8085"
     depends_on:
       postgres-catalog:
         condition: service_healthy
@@ -256,14 +268,15 @@ services:
       dockerfile: cart-service/Dockerfile
     container_name: ferreteria-cart
     environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET requerido}
       DB_CART_URL: jdbc:postgresql://postgres-cart:5432/ferreteria_cart
-      DB_USER: postgres
-      DB_PASS: postgres
+      DB_USER: ${DB_USER:?DB_USER requerido}
+      DB_PASS: ${DB_PASS:?DB_PASS requerido}
       PRODUCT_SERVICE_URL: http://product-service:8082
       JWT_ISSUER_URI: http://auth-service:8081
       JWT_JWK_SET_URI: http://auth-service:8081/.well-known/jwks.json
     ports:
-      - "8086:8086"
+      - "8186:8086"
     depends_on:
       postgres-cart:
         condition: service_healthy
@@ -278,11 +291,12 @@ services:
       dockerfile: api-gateway/Dockerfile
     container_name: ferreteria-gateway
     environment:
-      JWT_SECRET: ${JWT_SECRET:-JrJIqjFE+cWRH0onkBeBnIQW1ncfnr65CPK+8Sbh0eE=}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET requerido}
       JWT_ISSUER: ferreteria-auth
       JWT_AUDIENCE: ferreteria-frontend
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-http://localhost:5173}
     ports:
-      - "8080:8080"
+      - "8180:8080"
     depends_on:
       auth-service:
         condition: service_started

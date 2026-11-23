@@ -2,9 +2,9 @@ spring:
   application:
     name: user-service
   datasource:
-    url: ${DB_USER_URL:jdbc:postgresql://localhost:5434/ferreteria_user}
-    username: ${DB_USER:postgres}
-    password: ${DB_PASS:postgres}
+    url: ${DB_USER_URL:jdbc:postgresql://localhost:5437/ferreteria_user}
+    username: ${DB_USER}
+    password: ${DB_PASS}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20
@@ -36,8 +36,8 @@ spring:
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASS:guest}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASS}
   cloud:
     stream:
       defaultBinder: rabbit
@@ -51,6 +51,20 @@ spring:
         usuarioEliminado-out-0:
           destination: usuario.eliminado
           content-type: application/json
+      rabbit:
+        bindings:
+          usuarioCreado-out-0:
+            producer:
+              exchange-type: topic
+              routing-key: usuario.creado
+          usuarioActualizado-out-0:
+            producer:
+              exchange-type: topic
+              routing-key: usuario.actualizado
+          usuarioEliminado-out-0:
+            producer:
+              exchange-type: topic
+              routing-key: usuario.eliminado
 
 server:
   port: ${SERVER_PORT:8084}
@@ -71,3 +85,13 @@ logging:
     com.ferreteria.user_service: DEBUG
     org.springframework.security: DEBUG
     org.hibernate.SQL: WARN
+
+app:
+  internal:
+    secret: ${INTERNAL_API_SECRET:}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:true}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:true}

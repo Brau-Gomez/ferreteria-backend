@@ -3,8 +3,8 @@ spring:
     name: cart-service
   datasource:
     url: ${DB_CART_URL:jdbc:postgresql://localhost:5436/ferreteria_cart}
-    username: ${DB_USER:postgres}
-    password: ${DB_PASS:postgres}
+    username: ${DB_USER}
+    password: ${DB_PASS}
   jpa:
     open-in-view: false
     hibernate:
@@ -25,6 +25,9 @@ server:
   servlet:
     context-path: /api
 
+cart:
+  max-items: ${CART_MAX_ITEMS:100}
+
 management:
   endpoints:
     web:
@@ -34,3 +37,5 @@ management:
 springdoc:
   swagger-ui:
     path: /doc/swagger-ui.html
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:true}

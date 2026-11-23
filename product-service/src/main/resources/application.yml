@@ -3,8 +3,8 @@ spring:
     name: product-service
   datasource:
     url: ${DB_PRODUCT_URL:jdbc:postgresql://localhost:5432/ferreteria_product}
-    username: ${DB_USER:postgres}
-    password: ${DB_PASS:postgres}
+    username: ${DB_USER}
+    password: ${DB_PASS}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20
@@ -36,8 +36,8 @@ spring:
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASS:guest}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASS}
   cloud:
     stream:
       defaultBinder: rabbit
@@ -54,6 +54,24 @@ spring:
         productoEliminado-out-0:
           destination: producto.eliminado
           content-type: application/json
+      rabbit:
+        bindings:
+          productoCreado-out-0:
+            producer:
+              exchange-type: topic
+              routing-key: producto.creado
+          productoActualizado-out-0:
+            producer:
+              exchange-type: topic
+              routing-key: producto.actualizado
+          productoStockActualizado-out-0:
+            producer:
+              exchange-type: topic
+              routing-key: producto.stock_actualizado
+          productoEliminado-out-0:
+            producer:
+              exchange-type: topic
+              routing-key: producto.eliminado
     openfeign:
       client:
         config:
@@ -86,3 +104,13 @@ logging:
     org.springframework.security: DEBUG
     org.hibernate.SQL: WARN
     feign: DEBUG
+
+app:
+  internal:
+    secret: ${INTERNAL_API_SECRET:}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:true}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:true}

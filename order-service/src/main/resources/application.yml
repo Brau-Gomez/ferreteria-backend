@@ -3,8 +3,8 @@ spring:
     name: order-service
   datasource:
     url: ${DB_ORDER_URL:jdbc:postgresql://localhost:5433/ferreteria_order}
-    username: ${DB_USER:postgres}
-    password: ${DB_PASS:postgres}
+    username: ${DB_USER}
+    password: ${DB_PASS}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20
@@ -36,8 +36,8 @@ spring:
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASS:guest}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASS}
     virtual-host: /
     connection-timeout: 10000
     listener:
@@ -96,3 +96,9 @@ logging:
     org.springframework.security: DEBUG
     org.hibernate.SQL: WARN
     org.springframework.cloud.stream: DEBUG
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:true}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:true}
