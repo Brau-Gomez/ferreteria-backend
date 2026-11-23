@@ -9,10 +9,14 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -26,16 +30,19 @@ public class UsuarioController {
     private final UsuarioService usuarioService;
 
     @PostMapping
-    @Operation(summary = "Crear nuevo usuario")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Crear usuario (solo ADMIN)")
     public ResponseEntity<UsuarioResponseDTO> crear(@Valid @RequestBody UsuarioRequestDTO request) {
         UsuarioResponseDTO response = usuarioService.crear(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or #id.toString() == authentication.name")
     @Operation(summary = "Obtener usuario por ID")
     public ResponseEntity<UsuarioResponseDTO> obtenerPorId(
-            @Parameter(description = "ID del usuario") @PathVariable UUID id) {
+            @Parameter(description = "ID del usuario") @PathVariable UUID id,
+            @AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(usuarioService.obtenerPorId(id));
     }
 
@@ -54,10 +61,11 @@ public class UsuarioController {
     }
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN') or hasRole('VENDEDOR')")
     @Operation(summary = "Listar usuarios con paginación y filtros")
     public ResponseEntity<PageResponseDTO<UsuarioResponseDTO>> listar(
-            @Parameter(description = "Número de página (0-based)") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "Número de página (0-based)") @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
             @Parameter(description = "Campo para ordenar") @RequestParam(defaultValue = "nombreCompleto") String sortBy,
             @Parameter(description = "Dirección de orden (asc/desc)") @RequestParam(defaultValue = "asc") String sortDir,
             @Parameter(description = "Filtro por nombre o email") @RequestParam(required = false) String filtro) {
@@ -65,15 +73,17 @@ public class UsuarioController {
     }
 
     @GetMapping("/rol/{rol}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('VENDEDOR')")
     @Operation(summary = "Listar usuarios por rol")
     public ResponseEntity<PageResponseDTO<UsuarioResponseDTO>> listarPorRol(
             @Parameter(description = "Rol del usuario") @PathVariable Usuario.Rol rol,
-            @Parameter(description = "Número de página") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") int size) {
+            @Parameter(description = "Número de página") @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return ResponseEntity.ok(usuarioService.listarPorRol(rol, page, size));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or #id.toString() == authentication.name")
     @Operation(summary = "Actualizar usuario")
     public ResponseEntity<UsuarioResponseDTO> actualizar(
             @Parameter(description = "ID del usuario") @PathVariable UUID id,
@@ -83,7 +93,7 @@ public class UsuarioController {
 
     @PatchMapping("/{id}/estado")
     @Operation(summary = "Actualizar estado del usuario")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UsuarioResponseDTO> actualizarEstado(
             @Parameter(description = "ID del usuario") @PathVariable UUID id,
             @Parameter(description = "Nuevo estado") @RequestParam Usuario.EstadoUsuario estado) {
@@ -92,7 +102,7 @@ public class UsuarioController {
 
     @PatchMapping("/{id}/rol")
     @Operation(summary = "Actualizar rol del usuario")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UsuarioResponseDTO> actualizarRol(
             @Parameter(description = "ID del usuario") @PathVariable UUID id,
             @Parameter(description = "Nuevo rol") @RequestParam Usuario.Rol rol) {
@@ -101,7 +111,7 @@ public class UsuarioController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Eliminar usuario")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void eliminar(@Parameter(description = "ID del usuario") @PathVariable UUID id) {
         usuarioService.eliminar(id);

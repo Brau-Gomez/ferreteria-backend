@@ -49,6 +49,8 @@ public interface CuentaCorrienteRepository extends JpaRepository<CuentaCorriente
 
     long countByEstado(CuentaCorriente.EstadoCuenta estado);
 
+    boolean existsByUsuarioIdAndEstadoNot(UUID usuarioId, CuentaCorriente.EstadoCuenta estado);
+
     @Query("SELECT c FROM CuentaCorriente c WHERE c.estado = :estado AND c.diaCorte = :diaCorte")
     List<CuentaCorriente> findByEstadoAndDiaCorte(
             @Param("estado") CuentaCorriente.EstadoCuenta estado,

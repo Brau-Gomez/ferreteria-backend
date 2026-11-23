@@ -8,9 +8,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,6 +28,7 @@ public class DireccionController {
     private final DireccionService direccionService;
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN') or #usuarioId.toString() == authentication.name")
     @Operation(summary = "Crear dirección para un usuario")
     public ResponseEntity<DireccionResponseDTO> crear(
             @Parameter(description = "ID del usuario") @PathVariable UUID usuarioId,
@@ -34,6 +38,7 @@ public class DireccionController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or #usuarioId.toString() == authentication.name")
     @Operation(summary = "Obtener dirección por ID")
     public ResponseEntity<DireccionResponseDTO> obtenerPorId(
             @Parameter(description = "ID del usuario") @PathVariable UUID usuarioId,
@@ -42,6 +47,7 @@ public class DireccionController {
     }
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN') or #usuarioId.toString() == authentication.name")
     @Operation(summary = "Listar direcciones de un usuario")
     public ResponseEntity<List<DireccionResponseDTO>> listar(
             @Parameter(description = "ID del usuario") @PathVariable UUID usuarioId) {
@@ -49,15 +55,17 @@ public class DireccionController {
     }
 
     @GetMapping("/paginado")
+    @PreAuthorize("hasRole('ADMIN') or #usuarioId.toString() == authentication.name")
     @Operation(summary = "Listar direcciones de un usuario con paginación")
     public ResponseEntity<PageResponseDTO<DireccionResponseDTO>> listarPaginado(
             @Parameter(description = "ID del usuario") @PathVariable UUID usuarioId,
-            @Parameter(description = "Número de página") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") int size) {
+            @Parameter(description = "Número de página") @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return ResponseEntity.ok(direccionService.listarPorUsuarioPaginado(usuarioId, page, size));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or #usuarioId.toString() == authentication.name")
     @Operation(summary = "Actualizar dirección")
     public ResponseEntity<DireccionResponseDTO> actualizar(
             @Parameter(description = "ID de la dirección") @PathVariable UUID id,
@@ -66,6 +74,7 @@ public class DireccionController {
     }
 
     @PatchMapping("/{id}/principal")
+    @PreAuthorize("hasRole('ADMIN') or #usuarioId.toString() == authentication.name")
     @Operation(summary = "Establecer dirección como principal")
     public ResponseEntity<DireccionResponseDTO> establecerPrincipal(
             @Parameter(description = "ID de la dirección") @PathVariable UUID id) {
@@ -73,6 +82,7 @@ public class DireccionController {
     }
 
     @PatchMapping("/{id}/facturacion")
+    @PreAuthorize("hasRole('ADMIN') or #usuarioId.toString() == authentication.name")
     @Operation(summary = "Establecer dirección para facturación")
     public ResponseEntity<DireccionResponseDTO> establecerFacturacion(
             @Parameter(description = "ID de la dirección") @PathVariable UUID id) {
@@ -80,6 +90,7 @@ public class DireccionController {
     }
 
     @PatchMapping("/{id}/despacho")
+    @PreAuthorize("hasRole('ADMIN') or #usuarioId.toString() == authentication.name")
     @Operation(summary = "Establecer dirección para despacho")
     public ResponseEntity<DireccionResponseDTO> establecerDespacho(
             @Parameter(description = "ID de la dirección") @PathVariable UUID id) {
@@ -87,6 +98,7 @@ public class DireccionController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or #usuarioId.toString() == authentication.name")
     @Operation(summary = "Eliminar dirección")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void eliminar(@Parameter(description = "ID de la dirección") @PathVariable UUID id) {

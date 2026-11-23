@@ -36,7 +36,16 @@ public class AbonoService {
     private final CuentaCorrienteService cuentaCorrienteService;
 
     public AbonoResponseDTO crear(UUID cuentaCorrienteId, AbonoRequestDTO request) {
-        CuentaCorriente cuenta = obtenerCuenta(cuentaCorrienteId);
+        CuentaCorriente cuenta = obtenerCuentaParaModificar(cuentaCorrienteId);
+        if (cuenta.getEstado() == CuentaCorriente.EstadoCuenta.CERRADA
+                || cuenta.getEstado() == CuentaCorriente.EstadoCuenta.BLOQUEADA) {
+            throw new BadRequestException("La cuenta corriente no admite abonos: " + cuenta.getEstado());
+        }
+        if (request.getReferenciaExterna() != null
+                && !request.getReferenciaExterna().isBlank()
+                && abonoRepository.existsByReferenciaExterna(request.getReferenciaExterna())) {
+            throw new BadRequestException("Ya existe un abono con esa referencia externa");
+        }
 
         Abono abono = Abono.builder()
                 .cuentaCorriente(cuenta)
@@ -53,6 +62,16 @@ public class AbonoService {
         log.info("Abono registrado id={} cuenta={} monto={} tipo={}",
                 guardado.getId(), cuentaCorrienteId, guardado.getMonto(), guardado.getTipo());
         return AbonoResponseDTO.fromEntity(guardado);
+    }
+
+    public AbonoResponseDTO crear(UUID cuentaCorrienteId, AbonoRequestDTO request,
+                                  UUID autenticado, boolean puedeAdministrar) {
+        CuentaCorriente cuenta = obtenerCuentaParaModificar(cuentaCorrienteId);
+        if (!puedeAdministrar
+                && (cuenta.getUsuario() == null || !cuenta.getUsuario().getId().equals(autenticado))) {
+            throw new BadRequestException("No tienes permiso para registrar abonos en esta cuenta");
+        }
+        return crear(cuentaCorrienteId, request);
     }
 
     @Transactional(readOnly = true)
@@ -90,7 +109,8 @@ public class AbonoService {
     }
 
     public AbonoResponseDTO aplicar(UUID id, String procesadoPor) {
-        Abono abono = obtenerAbono(id);
+        Abono abono = abonoRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Abono no encontrado con ID: " + id));
 
         if (abono.getEstado() != Abono.EstadoAbono.PENDIENTE) {
             throw new BadRequestException("Solo se pueden aplicar abonos PENDIENTES. Estado actual: " + abono.getEstado());
@@ -120,7 +140,8 @@ public class AbonoService {
     }
 
     public AbonoResponseDTO rechazar(UUID id, String procesadoPor, String motivo) {
-        Abono abono = obtenerAbono(id);
+        Abono abono = abonoRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Abono no encontrado con ID: " + id));
 
         if (abono.getEstado() != Abono.EstadoAbono.PENDIENTE) {
             throw new BadRequestException("Solo se pueden rechazar abonos PENDIENTES. Estado actual: " + abono.getEstado());
@@ -135,7 +156,8 @@ public class AbonoService {
     }
 
     public AbonoResponseDTO anular(UUID id, String procesadoPor) {
-        Abono abono = obtenerAbono(id);
+        Abono abono = abonoRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Abono no encontrado con ID: " + id));
 
         if (abono.getEstado() != Abono.EstadoAbono.APLICADO) {
             throw new BadRequestException("Solo se pueden anular abonos APLICADOS. Estado actual: " + abono.getEstado());
@@ -212,6 +234,11 @@ public class AbonoService {
 
     private CuentaCorriente obtenerCuenta(UUID cuentaCorrienteId) {
         return cuentaCorrienteRepository.findById(cuentaCorrienteId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cuenta corriente no encontrada con ID: " + cuentaCorrienteId));
+    }
+
+    private CuentaCorriente obtenerCuentaParaModificar(UUID cuentaCorrienteId) {
+        return cuentaCorrienteRepository.findByIdForUpdate(cuentaCorrienteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cuenta corriente no encontrada con ID: " + cuentaCorrienteId));
     }
 

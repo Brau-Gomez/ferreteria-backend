@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -203,7 +204,10 @@ public class UsuarioService {
 
     private Pageable buildPageable(int page, int size, String sortBy, String sortDir) {
         Sort.Direction direction = "desc".equalsIgnoreCase(sortDir) ? Sort.Direction.DESC : Sort.Direction.ASC;
-        String sortField = (sortBy != null && !sortBy.isBlank()) ? sortBy : "nombreCompleto";
-        return PageRequest.of(page, size, Sort.by(direction, sortField));
+        Set<String> allowed = Set.of("nombreCompleto", "email", "rol", "estado", "createdAt");
+        String sortField = allowed.contains(sortBy) ? sortBy : "nombreCompleto";
+        int boundedSize = Math.min(Math.max(size, 1), 100);
+        int boundedPage = Math.max(page, 0);
+        return PageRequest.of(boundedPage, boundedSize, Sort.by(direction, sortField));
     }
 }

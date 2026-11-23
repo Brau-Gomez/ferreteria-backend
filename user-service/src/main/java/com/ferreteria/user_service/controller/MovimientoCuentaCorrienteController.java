@@ -9,6 +9,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -41,8 +43,8 @@ public class MovimientoCuentaCorrienteController {
     @Operation(summary = "Listar movimientos con paginación")
     public ResponseEntity<PageResponseDTO<MovimientoCuentaCorrienteResponseDTO>> listarPaginado(
             @Parameter(description = "ID de la cuenta corriente") @PathVariable UUID cuentaCorrienteId,
-            @Parameter(description = "Número de página") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "Número de página") @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
             @Parameter(description = "Filtrar por tipo") @RequestParam(required = false) String tipo) {
         return ResponseEntity.ok(movimientoService.listarPorCuentaCorrientePaginado(cuentaCorrienteId, page, size, tipo));
     }
@@ -53,8 +55,8 @@ public class MovimientoCuentaCorrienteController {
             @Parameter(description = "ID de la cuenta corriente") @PathVariable UUID cuentaCorrienteId,
             @Parameter(description = "Fecha inicio (ISO-8601)") @RequestParam Instant inicio,
             @Parameter(description = "Fecha fin (ISO-8601)") @RequestParam Instant fin,
-            @Parameter(description = "Número de página") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") int size) {
+            @Parameter(description = "Número de página") @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return ResponseEntity.ok(movimientoService.listarPorPeriodo(cuentaCorrienteId, inicio, fin, page, size));
     }
 

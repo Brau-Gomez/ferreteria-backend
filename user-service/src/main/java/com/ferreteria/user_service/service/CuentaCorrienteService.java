@@ -12,6 +12,9 @@ import com.ferreteria.user_service.model.Usuario;
 import com.ferreteria.user_service.repository.CuentaCorrienteRepository;
 import com.ferreteria.user_service.repository.MovimientoCuentaCorrienteRepository;
 import com.ferreteria.user_service.repository.UsuarioRepository;
+import com.ferreteria.user_service.repository.AbonoRepository;
+import com.ferreteria.user_service.repository.PeriodoInteresRepository;
+import com.ferreteria.user_service.model.PeriodoInteres;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -35,6 +38,8 @@ public class CuentaCorrienteService {
     private final CuentaCorrienteRepository cuentaCorrienteRepository;
     private final MovimientoCuentaCorrienteRepository movimientoRepository;
     private final UsuarioRepository usuarioRepository;
+    private final AbonoRepository abonoRepository;
+    private final PeriodoInteresRepository periodoInteresRepository;
 
     public CuentaCorrienteResponseDTO crear(UUID usuarioId, CuentaCorrienteRequestDTO request) {
         if (cuentaCorrienteRepository.existsByUsuarioId(usuarioId)) {
@@ -79,10 +84,29 @@ public class CuentaCorrienteService {
     }
 
     @Transactional(readOnly = true)
+    public CuentaCorrienteResponseDTO obtenerPorId(UUID id, UUID userId, boolean puedeAdministrar) {
+        CuentaCorriente cuenta = obtenerCuenta(id);
+        if (!puedeAdministrar
+                && (cuenta.getUsuario() == null || !userId.equals(cuenta.getUsuario().getId()))) {
+            throw new BadRequestException("No tienes permiso para consultar esta cuenta corriente");
+        }
+        return CuentaCorrienteResponseDTO.fromEntity(cuenta);
+    }
+
+    @Transactional(readOnly = true)
     public CuentaCorrienteResponseDTO obtenerPorUsuarioId(UUID usuarioId) {
         CuentaCorriente cuenta = cuentaCorrienteRepository.findByUsuarioId(usuarioId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cuenta corriente no encontrada para usuario: " + usuarioId));
         return CuentaCorrienteResponseDTO.fromEntity(cuenta);
+    }
+
+    @Transactional(readOnly = true)
+    public CuentaCorrienteResponseDTO obtenerPorUsuarioId(UUID usuarioId, UUID autenticado,
+                                                          boolean puedeAdministrar) {
+        if (!puedeAdministrar && !usuarioId.equals(autenticado)) {
+            throw new BadRequestException("No tienes permiso para consultar esta cuenta corriente");
+        }
+        return obtenerPorUsuarioId(usuarioId);
     }
 
     @Transactional(readOnly = true)
@@ -108,6 +132,7 @@ public class CuentaCorrienteService {
 
     public CuentaCorrienteResponseDTO actualizar(UUID id, CuentaCorrienteRequestDTO request) {
         CuentaCorriente cuenta = obtenerCuentaParaModificar(id);
+        validarCuentaOperable(cuenta);
 
         BigDecimal limiteAnterior = cuenta.getLimiteCredito();
         BigDecimal disponibleAnterior = cuenta.getSaldoDisponible();
@@ -151,6 +176,7 @@ public class CuentaCorrienteService {
     public CuentaCorrienteResponseDTO actualizarLimiteCredito(UUID id, BigDecimal nuevoLimite) {
         validarMontoPositivo(nuevoLimite, "El límite de crédito");
         CuentaCorriente cuenta = obtenerCuentaParaModificar(id);
+        validarCuentaOperable(cuenta);
 
         BigDecimal limiteAnterior = cuenta.getLimiteCredito();
         BigDecimal disponibleAnterior = cuenta.getSaldoDisponible();
@@ -218,6 +244,11 @@ public class CuentaCorrienteService {
 
     public CuentaCorrienteResponseDTO procesarInteresMensual(UUID id) {
         CuentaCorriente cuenta = obtenerCuentaParaModificar(id);
+        validarCuentaOperable(cuenta);
+        String periodo = java.time.YearMonth.now().toString();
+        if (periodoInteresRepository.findByCuentaCorrienteIdAndPeriodo(id, periodo).isPresent()) {
+            throw new BadRequestException("El interés mensual ya fue procesado para el período " + periodo);
+        }
 
         if (cuenta.getSaldoUtilizado().signum() == 0) {
             return CuentaCorrienteResponseDTO.fromEntity(cuenta); // sin deuda no hay interés
@@ -249,17 +280,30 @@ public class CuentaCorrienteService {
                 null, null,
                 utilizadoAnterior, actualizada.getSaldoUtilizado(),
                 disponibleAnterior, actualizada.getSaldoDisponible());
+        periodoInteresRepository.save(PeriodoInteres.builder()
+                .cuentaCorriente(actualizada)
+                .periodo(periodo)
+                .monto(interes)
+                .build());
 
         log.info("Interés procesado cuenta={} monto={}", id, interes);
         return CuentaCorrienteResponseDTO.fromEntity(actualizada);
     }
 
     public void eliminar(UUID id) {
-        if (!cuentaCorrienteRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Cuenta corriente no encontrada con ID: " + id);
+        CuentaCorriente cuenta = obtenerCuentaParaModificar(id);
+        if (cuenta.getSaldoUtilizado().signum() != 0) {
+            throw new com.ferreteria.user_service.exception.ConflictException(
+                    "No se puede eliminar una cuenta con saldo utilizado");
         }
-        cuentaCorrienteRepository.deleteById(id);
-        log.info("Cuenta corriente eliminada id={}", id);
+        if (movimientoRepository.countByCuentaCorrienteId(id) > 0
+                || abonoRepository.countByCuentaCorrienteId(id) > 0) {
+            throw new com.ferreteria.user_service.exception.ConflictException(
+                    "No se puede eliminar una cuenta con historial financiero");
+        }
+        cuenta.setEstado(CuentaCorriente.EstadoCuenta.CERRADA);
+        cuentaCorrienteRepository.save(cuenta);
+        log.info("Cuenta corriente cerrada id={}", id);
     }
 
     @Transactional(readOnly = true)
@@ -327,6 +371,13 @@ public class CuentaCorrienteService {
     private CuentaCorriente obtenerCuentaParaModificar(UUID id) {
         return cuentaCorrienteRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cuenta corriente no encontrada con ID: " + id));
+    }
+
+    private void validarCuentaOperable(CuentaCorriente cuenta) {
+        if (cuenta.getEstado() == CuentaCorriente.EstadoCuenta.CERRADA
+                || cuenta.getEstado() == CuentaCorriente.EstadoCuenta.BLOQUEADA) {
+            throw new BadRequestException("La cuenta corriente no admite operaciones: " + cuenta.getEstado());
+        }
     }
 
     private void validarMontoPositivo(BigDecimal monto, String etiqueta) {

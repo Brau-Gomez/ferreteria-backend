@@ -8,10 +8,14 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -30,8 +34,12 @@ public class AbonoController {
     @Operation(summary = "Registrar nuevo abono (queda pendiente de validación)")
     public ResponseEntity<AbonoResponseDTO> crear(
             @Parameter(description = "ID de la cuenta corriente") @PathVariable UUID cuentaCorrienteId,
-            @Valid @RequestBody AbonoRequestDTO request) {
-        AbonoResponseDTO response = abonoService.crear(cuentaCorrienteId, request);
+            @Valid @RequestBody AbonoRequestDTO request,
+            @AuthenticationPrincipal Jwt jwt) {
+        UUID autenticado = UUID.fromString(jwt.getSubject());
+        boolean puedeAdministrar = tieneRol(jwt, "ADMIN") || tieneRol(jwt, "VENDEDOR");
+        AbonoResponseDTO response = abonoService.crear(
+                cuentaCorrienteId, request, autenticado, puedeAdministrar);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -53,49 +61,49 @@ public class AbonoController {
     @Operation(summary = "Listar abonos con paginación")
     public ResponseEntity<PageResponseDTO<AbonoResponseDTO>> listarPaginado(
             @Parameter(description = "ID de la cuenta corriente") @PathVariable UUID cuentaCorrienteId,
-            @Parameter(description = "Número de página") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "Número de página") @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
             @Parameter(description = "Filtrar por estado") @RequestParam(required = false) String estado) {
         return ResponseEntity.ok(abonoService.listarPorCuentaCorrientePaginado(cuentaCorrienteId, page, size, estado));
     }
 
     @GetMapping("/estado/{estado}")
     @Operation(summary = "Listar abonos de la cuenta corriente por estado")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResponseDTO<AbonoResponseDTO>> listarPorEstado(
             @Parameter(description = "ID de la cuenta corriente") @PathVariable UUID cuentaCorrienteId,
             @Parameter(description = "Estado del abono") @PathVariable String estado,
-            @Parameter(description = "Número de página") @RequestParam(defaultValue = "0") int page,
-            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") int size) {
+            @Parameter(description = "Número de página") @RequestParam(defaultValue = "0") @Min(0) int page,
+            @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return ResponseEntity.ok(abonoService.listarPorEstado(cuentaCorrienteId, estado, page, size));
     }
 
     @PostMapping("/{id}/aplicar")
     @Operation(summary = "Aplicar/validar abono (solo admin)")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AbonoResponseDTO> aplicar(
             @Parameter(description = "ID del abono") @PathVariable UUID id,
-            @Parameter(description = "Usuario que procesa") @RequestParam String procesadoPor) {
-        return ResponseEntity.ok(abonoService.aplicar(id, procesadoPor));
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(abonoService.aplicar(id, jwt.getSubject()));
     }
 
     @PostMapping("/{id}/rechazar")
     @Operation(summary = "Rechazar abono (solo admin)")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AbonoResponseDTO> rechazar(
             @Parameter(description = "ID del abono") @PathVariable UUID id,
-            @Parameter(description = "Usuario que procesa") @RequestParam String procesadoPor,
+            @AuthenticationPrincipal Jwt jwt,
             @Parameter(description = "Motivo del rechazo") @RequestParam String motivo) {
-        return ResponseEntity.ok(abonoService.rechazar(id, procesadoPor, motivo));
+        return ResponseEntity.ok(abonoService.rechazar(id, jwt.getSubject(), motivo));
     }
 
     @PostMapping("/{id}/anular")
     @Operation(summary = "Anular abono ya aplicado (solo admin)")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AbonoResponseDTO> anular(
             @Parameter(description = "ID del abono") @PathVariable UUID id,
-            @Parameter(description = "Usuario que procesa") @RequestParam String procesadoPor) {
-        return ResponseEntity.ok(abonoService.anular(id, procesadoPor));
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(abonoService.anular(id, jwt.getSubject()));
     }
 
     @GetMapping("/totales/aplicados")
@@ -114,9 +122,14 @@ public class AbonoController {
 
     @GetMapping("/pendientes-antiguos")
     @Operation(summary = "Obtener abonos pendientes antiguos")
-    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<AbonoResponseDTO>> obtenerPendientesAntiguos(
             @Parameter(description = "Días de antigüedad") @RequestParam(defaultValue = "7") int diasAntiguedad) {
         return ResponseEntity.ok(abonoService.obtenerPendientesAntiguos(diasAntiguedad));
+    }
+
+    private boolean tieneRol(Jwt jwt, String rol) {
+        var roles = jwt.getClaimAsStringList("roles");
+        return roles != null && roles.contains(rol);
     }
 }

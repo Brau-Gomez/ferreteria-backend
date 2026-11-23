@@ -6,6 +6,9 @@ import com.ferreteria.user_service.model.MovimientoCuentaCorriente;
 import com.ferreteria.user_service.repository.CuentaCorrienteRepository;
 import com.ferreteria.user_service.repository.MovimientoCuentaCorrienteRepository;
 import com.ferreteria.user_service.repository.UsuarioRepository;
+import com.ferreteria.user_service.repository.AbonoRepository;
+import com.ferreteria.user_service.repository.PeriodoInteresRepository;
+import com.ferreteria.user_service.model.PeriodoInteres;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +37,10 @@ class CuentaCorrienteServiceTest {
     private MovimientoCuentaCorrienteRepository movimientoRepository;
     @Mock
     private UsuarioRepository usuarioRepository;
+    @Mock
+    private AbonoRepository abonoRepository;
+    @Mock
+    private PeriodoInteresRepository periodoInteresRepository;
 
     @InjectMocks
     private CuentaCorrienteService cuentaCorrienteService;
@@ -117,5 +124,33 @@ class CuentaCorrienteServiceTest {
 
         assertThatThrownBy(() -> cuentaCorrienteService.actualizarLimiteCredito(cuentaId, new BigDecimal("50000")))
                 .isInstanceOf(SaldoInsuficienteException.class);
+    }
+
+    @Test
+    @DisplayName("El interés mensual no se cobra dos veces en el mismo período")
+    void procesarInteres_mismoPeriodo_lanzaExcepcion() {
+        UUID cuentaId = UUID.randomUUID();
+        CuentaCorriente cc = cuenta("80000", "20000", "100000");
+        String periodo = java.time.YearMonth.now().toString();
+        when(cuentaCorrienteRepository.findByIdForUpdate(cuentaId)).thenReturn(Optional.of(cc));
+        when(periodoInteresRepository.findByCuentaCorrienteIdAndPeriodo(cuentaId, periodo))
+                .thenReturn(Optional.of(PeriodoInteres.builder().periodo(periodo).build()));
+
+        assertThatThrownBy(() -> cuentaCorrienteService.procesarInteresMensual(cuentaId))
+                .isInstanceOf(com.ferreteria.user_service.exception.BadRequestException.class)
+                .hasMessageContaining("ya fue procesado");
+    }
+
+    @Test
+    @DisplayName("Una cuenta con historial financiero no se elimina físicamente")
+    void eliminar_conMovimientos_rechaza() {
+        UUID cuentaId = UUID.randomUUID();
+        CuentaCorriente cc = cuenta("100000", "0", "100000");
+        when(cuentaCorrienteRepository.findByIdForUpdate(cuentaId)).thenReturn(Optional.of(cc));
+        when(movimientoRepository.countByCuentaCorrienteId(cuentaId)).thenReturn(1L);
+
+        assertThatThrownBy(() -> cuentaCorrienteService.eliminar(cuentaId))
+                .isInstanceOf(com.ferreteria.user_service.exception.ConflictException.class);
+        verify(cuentaCorrienteRepository, org.mockito.Mockito.never()).deleteById(any());
     }
 }

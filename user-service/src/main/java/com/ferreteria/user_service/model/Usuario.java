@@ -65,7 +65,7 @@ public class Usuario {
     private CuentaCorriente cuentaCorriente;
 
     public enum Rol {
-        CLIENTE, CONTRATISTA, ADMINISTRADOR, VENDEDOR
+        CLIENTE, CONTRATISTA, ADMIN, VENDEDOR
     }
 
     public enum EstadoUsuario {

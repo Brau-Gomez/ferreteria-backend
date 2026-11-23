@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 
 import java.time.Instant;
 import java.util.List;
@@ -45,10 +47,18 @@ public interface AbonoRepository extends JpaRepository<Abono, UUID> {
 
     long countByCuentaCorrienteIdAndEstado(UUID cuentaCorrienteId, Abono.EstadoAbono estado);
 
+    long countByCuentaCorrienteId(UUID cuentaCorrienteId);
+
     @Query("SELECT SUM(a.monto) FROM Abono a WHERE a.cuentaCorriente.id = :cuentaCorrienteId AND a.estado = :estado")
     Optional<java.math.BigDecimal> sumMontoByCuentaCorrienteIdAndEstado(
             @Param("cuentaCorrienteId") UUID cuentaCorrienteId,
             @Param("estado") Abono.EstadoAbono estado);
 
     Optional<Abono> findByReferenciaExterna(String referenciaExterna);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Abono a WHERE a.id = :id")
+    Optional<Abono> findByIdForUpdate(@Param("id") UUID id);
+
+    boolean existsByReferenciaExterna(String referenciaExterna);
 }

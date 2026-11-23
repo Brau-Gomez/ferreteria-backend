@@ -17,6 +17,8 @@ import java.util.UUID;
 @Repository
 public interface MovimientoCuentaCorrienteRepository extends JpaRepository<MovimientoCuentaCorriente, UUID> {
 
+    long countByCuentaCorrienteId(UUID cuentaCorrienteId);
+
     List<MovimientoCuentaCorriente> findByCuentaCorriente(CuentaCorriente cuentaCorriente);
 
     Page<MovimientoCuentaCorriente> findByCuentaCorriente(CuentaCorriente cuentaCorriente, Pageable pageable);
