@@ -43,7 +43,11 @@ public class CoberturaDespachoController {
         boolean covered = service.isCovered(comunaId);
         BigDecimal cost = service.getDeliveryCost(comunaId);
         Integer days = service.getEstimatedDays(comunaId);
-        return ResponseEntity.ok(ApiResponse.ok(new CoverageCheckResponse(comunaId, covered, cost, days)));
+        BigDecimal minOrderAmount = service.findByComunaId(comunaId)
+                .map(CoberturaDespacho::getMinOrderAmount)
+                .orElse(null);
+        return ResponseEntity.ok(ApiResponse.ok(
+                new CoverageCheckResponse(comunaId, covered, cost, minOrderAmount, days)));
     }
 
     @PostMapping
@@ -73,6 +77,7 @@ public class CoberturaDespachoController {
             Long comunaId,
             boolean covered,
             BigDecimal deliveryCost,
+            BigDecimal minOrderAmount,
             Integer estimatedDays
     ) {}
 }

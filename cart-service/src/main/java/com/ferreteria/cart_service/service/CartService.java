@@ -8,6 +8,7 @@ import com.ferreteria.cart_service.exception.ResourceNotFoundException;
 import com.ferreteria.cart_service.model.CartItem;
 import com.ferreteria.cart_service.repository.CartItemRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,10 +21,16 @@ public class CartService {
     private final CartItemRepository repository;
     private final ProductClient productClient;
 
+    @Value("${cart.max-items:100}")
+    private int maxItems = 100;
+
     @Transactional(readOnly = true)
     public CartResponseDTO getCart(String userId) {
         List<CartItemResponseDTO> items = repository.findByUserIdOrderByCreatedAtAsc(userId).stream()
-                .map(this::toResponse)
+                .map(item -> {
+                    ProductDTO product = productClient.getByCode(item.getProductCode());
+                    return toResponse(item, product);
+                })
                 .toList();
         BigDecimal total = items.stream()
                 .map(CartItemResponseDTO::getSubtotal)
@@ -42,16 +49,19 @@ public class CartService {
                     validateProduct(product, newQuantity);
                     existing.setQuantity(newQuantity);
                     existing.setUnitPrice(product.getPrice());
-                    return toResponse(repository.save(existing));
+                    return toResponse(repository.save(existing), product);
                 })
                 .orElseGet(() -> {
+                    if (repository.countByUserId(userId) >= maxItems) {
+                        throw new BadRequestException("El carrito alcanzó el máximo de productos");
+                    }
                     CartItem item = CartItem.builder()
                             .userId(userId)
                             .productCode(request.getCode())
                             .quantity(request.getQuantity())
                             .unitPrice(product.getPrice())
                             .build();
-                    return toResponse(repository.save(item));
+                    return toResponse(repository.save(item), product);
                 });
     }
 
@@ -63,7 +73,7 @@ public class CartService {
         validateProduct(product, request.getQuantity());
         item.setQuantity(request.getQuantity());
         item.setUnitPrice(product.getPrice());
-        return toResponse(repository.save(item));
+        return toResponse(repository.save(item), product);
     }
 
     @Transactional
@@ -87,13 +97,32 @@ public class CartService {
         }
     }
 
-    private CartItemResponseDTO toResponse(CartItem item) {
+    private String extractPrimaryImageUrl(ProductDTO product) {
+        if (product.getImages() == null || product.getImages().isEmpty()) {
+            return null;
+        }
+        // Prefer primary image, fallback to first
+        return product.getImages().stream()
+                .filter(img -> img.isPrimary())
+                .map(ProductDTO.ProductImageDTO::getUrl)
+                .findFirst()
+                .orElse(product.getImages().get(0).getUrl());
+    }
+
+    private CartItemResponseDTO toResponse(CartItem item, ProductDTO product) {
         BigDecimal subtotal = item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
+        String imageUrl = extractPrimaryImageUrl(product);
         return CartItemResponseDTO.builder()
                 .code(item.getProductCode())
+                .name(product.getName())
+                .description(product.getDescription())
+                .imageUrl(imageUrl)
                 .quantity(item.getQuantity())
                 .unitPrice(item.getUnitPrice())
                 .subtotal(subtotal)
+                .stock(product.getStock())
+                .minStock(product.getMinStock())
+                .featured(product.isFeatured())
                 .build();
     }
 }

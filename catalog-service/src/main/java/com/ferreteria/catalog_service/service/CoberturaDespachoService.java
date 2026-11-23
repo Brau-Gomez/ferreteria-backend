@@ -74,10 +74,11 @@ public class CoberturaDespachoService {
 
     @Transactional
     public void delete(Long comunaId) {
-        if (!repository.existsByComunaId(comunaId)) {
-            throw new ResourceNotFoundException("No hay cobertura configurada para la comuna: " + comunaId);
-        }
-        repository.deleteByComunaId(comunaId);
+        CoberturaDespacho coverage = repository.findByComunaId(comunaId)
+                .orElseThrow(() -> new ResourceNotFoundException("No hay cobertura configurada para la comuna: " + comunaId));
+        coverage.setIsCovered(false);
+        coverage.setIsActive(false);
+        repository.save(coverage);
         eventPublisher.publishEvent(CatalogEvents.CoberturaDeletedEvent.of(comunaId));
     }
 }

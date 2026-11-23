@@ -7,6 +7,7 @@ import com.ferreteria.catalog_service.model.Comuna;
 import com.ferreteria.catalog_service.model.Region;
 import com.ferreteria.catalog_service.repository.ComunaRepository;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,17 +24,33 @@ public class ComunaService {
     private final ApplicationEventPublisher eventPublisher;
 
     public List<Comuna> findAllActive() {
-        return repository.findByIsActiveTrueOrderByNameAsc();
+        List<Comuna> comunas = repository.findByIsActiveTrueOrderByNameAsc();
+        inicializarRegiones(comunas);
+        return comunas;
     }
 
     public List<Comuna> findByRegionId(Long regionId) {
         regionService.findById(regionId); // valida que existe
-        return repository.findByRegionIdAndIsActiveTrueOrderByDisplayOrderAscNameAsc(regionId);
+        List<Comuna> comunas = repository.findByRegionIdAndIsActiveTrueOrderByDisplayOrderAscNameAsc(regionId);
+        inicializarRegiones(comunas);
+        return comunas;
     }
 
     public Comuna findById(Long id) {
-        return repository.findById(id)
+        Comuna comuna = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Comuna no encontrada: " + id));
+        inicializarRegiones(List.of(comuna));
+        return comuna;
+    }
+
+    // Reemplaza el proxy LAZY por la entidad real: Jackson no puede serializar
+    // el proxy de Hibernate fuera de la sesión del repositorio.
+    private void inicializarRegiones(List<Comuna> comunas) {
+        comunas.forEach(comuna -> {
+            if (comuna.getRegion() != null) {
+                comuna.setRegion((Region) Hibernate.unproxy(comuna.getRegion()));
+            }
+        });
     }
 
     public Comuna findByCode(String code) {
@@ -75,10 +92,10 @@ public class ComunaService {
 
     @Transactional
     public void delete(Long id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("Comuna no encontrada: " + id);
-        }
-        repository.deleteById(id);
+        Comuna comuna = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Comuna no encontrada: " + id));
+        comuna.setIsActive(false);
+        repository.save(comuna);
         eventPublisher.publishEvent(CatalogEvents.ComunaDeletedEvent.of(id));
     }
 }

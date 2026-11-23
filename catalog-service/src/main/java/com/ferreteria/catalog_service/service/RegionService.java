@@ -62,10 +62,10 @@ public class RegionService {
 
     @Transactional
     public void delete(Long id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("Región no encontrada: " + id);
-        }
-        repository.deleteById(id);
+        Region region = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Región no encontrada: " + id));
+        region.setIsActive(false);
+        repository.save(region);
         eventPublisher.publishEvent(CatalogEvents.RegionDeletedEvent.of(id));
     }
 }

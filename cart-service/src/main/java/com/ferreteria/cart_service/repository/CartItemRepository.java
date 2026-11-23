@@ -10,5 +10,6 @@ import java.util.UUID;
 public interface CartItemRepository extends JpaRepository<CartItem, UUID> {
     List<CartItem> findByUserIdOrderByCreatedAtAsc(String userId);
     Optional<CartItem> findByUserIdAndProductCode(String userId, String productCode);
+    long countByUserId(String userId);
     void deleteByUserId(String userId);
 }
