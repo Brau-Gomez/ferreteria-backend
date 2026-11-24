@@ -7,7 +7,9 @@ import com.ferreteria.cart_service.exception.BadRequestException;
 import com.ferreteria.cart_service.exception.ResourceNotFoundException;
 import com.ferreteria.cart_service.model.CartItem;
 import com.ferreteria.cart_service.repository.CartItemRepository;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CartService {
@@ -27,10 +30,7 @@ public class CartService {
     @Transactional(readOnly = true)
     public CartResponseDTO getCart(String userId) {
         List<CartItemResponseDTO> items = repository.findByUserIdOrderByCreatedAtAsc(userId).stream()
-                .map(item -> {
-                    ProductDTO product = productClient.getByCode(item.getProductCode());
-                    return toResponse(item, product);
-                })
+                .map(item -> toResponse(item, buscarProducto(item.getProductCode())))
                 .toList();
         BigDecimal total = items.stream()
                 .map(CartItemResponseDTO::getSubtotal)
@@ -88,6 +88,19 @@ public class CartService {
         repository.deleteByUserId(userId);
     }
 
+    /**
+     * Consulta el producto para enriquecer el carrito. Si el servicio de productos falla
+     * o el producto ya no existe, devuelve null y el ítem se muestra solo con lo guardado.
+     */
+    private ProductDTO buscarProducto(String code) {
+        try {
+            return productClient.getByCode(code);
+        } catch (FeignException e) {
+            log.warn("No se pudo obtener el producto {} para el carrito: {}", code, e.getMessage());
+            return null;
+        }
+    }
+
     private void validateProduct(ProductDTO product, int quantity) {
         if (product == null || !product.isActive()) {
             throw new BadRequestException("Producto no disponible");
@@ -111,6 +124,14 @@ public class CartService {
 
     private CartItemResponseDTO toResponse(CartItem item, ProductDTO product) {
         BigDecimal subtotal = item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity()));
+        if (product == null) {
+            return CartItemResponseDTO.builder()
+                    .code(item.getProductCode())
+                    .quantity(item.getQuantity())
+                    .unitPrice(item.getUnitPrice())
+                    .subtotal(subtotal)
+                    .build();
+        }
         String imageUrl = extractPrimaryImageUrl(product);
         return CartItemResponseDTO.builder()
                 .code(item.getProductCode())
