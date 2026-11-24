@@ -8,6 +8,7 @@ import com.ferreteria.cart_service.dto.CartResponseDTO;
 import com.ferreteria.cart_service.exception.BadRequestException;
 import com.ferreteria.cart_service.model.CartItem;
 import com.ferreteria.cart_service.repository.CartItemRepository;
+import feign.FeignException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -96,20 +97,64 @@ class CartServiceTest {
     }
 
     @Test
-    void getCartUsesPersistedItemsWithoutCallingProductServicePerItem() {
-        CartItem item = CartItem.builder()
-                .userId("user-a")
-                .productCode("TORN-001")
-                .quantity(2)
-                .unitPrice(new BigDecimal("1200.00"))
-                .build();
+    void getCartEnrichesItemsWithProductData() {
+        CartItem item = savedItem("TORN-001", 2, "1200.00");
+        ProductDTO producto = product("TORN-001", "1200.00", 10, true);
+        producto.setName("Tornillo 6x1");
+        ProductDTO.ProductImageDTO imagen = new ProductDTO.ProductImageDTO();
+        imagen.setUrl("https://img.test/tornillo.png");
+        imagen.setPrimary(true);
+        producto.setImages(List.of(imagen));
         when(repository.findByUserIdOrderByCreatedAtAsc("user-a")).thenReturn(List.of(item));
+        when(productClient.getByCode("TORN-001")).thenReturn(producto);
 
         CartResponseDTO response = cartService.getCart("user-a");
 
         assertThat(response.getItems()).hasSize(1);
+        CartItemResponseDTO linea = response.getItems().get(0);
+        assertThat(linea.getName()).isEqualTo("Tornillo 6x1");
+        assertThat(linea.getImageUrl()).isEqualTo("https://img.test/tornillo.png");
+        assertThat(linea.getStock()).isEqualTo(10);
         assertThat(response.getTotal()).isEqualByComparingTo("2400.00");
-        verifyNoInteractions(productClient);
+    }
+
+    @Test
+    void getCartKeepsPersistedItemWhenProductServiceFails() {
+        CartItem item = savedItem("TORN-001", 2, "1200.00");
+        when(repository.findByUserIdOrderByCreatedAtAsc("user-a")).thenReturn(List.of(item));
+        when(productClient.getByCode("TORN-001")).thenThrow(FeignException.class);
+
+        CartResponseDTO response = cartService.getCart("user-a");
+
+        assertThat(response.getItems()).hasSize(1);
+        CartItemResponseDTO linea = response.getItems().get(0);
+        assertThat(linea.getCode()).isEqualTo("TORN-001");
+        assertThat(linea.getName()).isNull();
+        assertThat(linea.getImageUrl()).isNull();
+        assertThat(linea.getSubtotal()).isEqualByComparingTo("2400.00");
+        assertThat(response.getTotal()).isEqualByComparingTo("2400.00");
+    }
+
+    @Test
+    void getCartKeepsPersistedItemWhenProductNoLongerExists() {
+        CartItem item = savedItem("TORN-001", 1, "1200.00");
+        when(repository.findByUserIdOrderByCreatedAtAsc("user-a")).thenReturn(List.of(item));
+        when(productClient.getByCode("TORN-001")).thenReturn(null);
+
+        CartResponseDTO response = cartService.getCart("user-a");
+
+        assertThat(response.getItems()).hasSize(1);
+        assertThat(response.getItems().get(0).getName()).isNull();
+        assertThat(response.getTotal()).isEqualByComparingTo("1200.00");
+    }
+
+    private static CartItem savedItem(String code, int quantity, String price) {
+        return CartItem.builder()
+                .userId("user-a")
+                .productCode(code)
+                .quantity(quantity)
+                .unitPrice(new BigDecimal(price))
+                .build();
     }
 
     private static CartItemRequestDTO request(String code, int quantity) {
