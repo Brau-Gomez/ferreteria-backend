@@ -1,8 +1,6 @@
 # Ferretería Los Maestros — Backend
 
-Backend basado en microservicios con Spring Boot para la plataforma de comercio y gestión de Ferretería Los Maestros.
-
-> Estado actual: proyecto académico en integración. El backend contiene los servicios principales, pero algunos contratos y controles de seguridad documentados todavía están en validación. Consulta `GUIA_FINAL_BACKEND.md` para el alcance pendiente y los criterios de aceptación.
+Backend basado en microservicios con Spring Boot para la plataforma de comercio y gestión de Ferretería Los Maestros. Proyecto académico (DuocUC, DSY1104 Desarrollo Fullstack II, EP3).
 
 ## Arquitectura
 
@@ -16,11 +14,13 @@ Backend basado en microservicios con Spring Boot para la plataforma de comercio 
 - PostgreSQL: una base de datos independiente por dominio.
 - RabbitMQ: comunicación asíncrona entre servicios.
 
+Roles del sistema: `ADMIN`, `VENDEDOR` y `CLIENTE` (el cliente puede ser un particular o un contratista).
+
 ## Tecnologías
 
 - Java 21
-- Spring Boot 3.3.5
-- Spring Cloud 2023.0.4 / Spring Cloud Gateway
+- Spring Boot 3.5.16
+- Spring Cloud 2025.0.3 / Spring Cloud Gateway
 - Spring Security y OAuth2 Resource Server
 - JJWT 0.12.6
 - Maven Wrapper
@@ -33,23 +33,28 @@ Backend basado en microservicios con Spring Boot para la plataforma de comercio 
 
 ## Puertos
 
-| Componente | Puerto local |
-|---|---:|
-| API Gateway | 8080 |
-| Auth Service | 8081 |
-| Product Service | 8082 |
-| Order Service | 8083 |
-| User Service | 8084 |
-| Catalog Service | 8085 |
-| Cart Service | 8086 |
-| PostgreSQL Auth | 5431 |
-| PostgreSQL Product | 5432 |
-| PostgreSQL Order | 5433 |
-| PostgreSQL User | 5437 (5434 reservado por otro entorno Docker) |
-| PostgreSQL Catalog | 5435 |
-| PostgreSQL Cart | 5436 |
-| RabbitMQ AMQP | 5672 |
-| RabbitMQ Management | 15672 |
+Con Docker Compose, los servicios se publican en estos puertos del equipo:
+
+| Componente      | Puerto con Docker Compose | Puerto sin Docker |
+| --------------- | ------------------------: | ----------------: |
+| API Gateway     |                      8180 |              8080 |
+| Auth Service    |                      8181 |              8081 |
+| Product Service |                      8182 |              8082 |
+| Order Service   |                      8183 |              8083 |
+| User Service    |                      8184 |              8084 |
+| Catalog Service |                      8185 |              8085 |
+| Cart Service    |                      8186 |              8086 |
+
+| Infraestructura     |                                  Puerto local |
+| ------------------- | --------------------------------------------: |
+| PostgreSQL Auth     |                                          5431 |
+| PostgreSQL Product  |                                          5432 |
+| PostgreSQL Order    |                                          5433 |
+| PostgreSQL User     | 5437 (5434 reservado por otro entorno Docker) |
+| PostgreSQL Catalog  |                                          5435 |
+| PostgreSQL Cart     |                                          5436 |
+| RabbitMQ AMQP       |                                          5672 |
+| RabbitMQ Management |                                         15672 |
 
 ## Requisitos
 
@@ -67,33 +72,36 @@ Copia la configuración de ejemplo:
 cp .env.example .env
 ```
 
-Genera un secreto JWT seguro:
+En Windows (PowerShell):
 
-```bash
-openssl rand -base64 32
+```powershell
+Copy-Item .env.example .env
 ```
 
-Asigna el resultado a `JWT_SECRET` en `.env`. El archivo `.env` está excluido por Git y no debe subirse al repositorio.
+Edita `.env` y completa los valores obligatorios. El archivo `.env` está excluido por Git y no debe subirse al repositorio.
 
-Variables principales:
+> Importante: `JWT_SECRET` debe estar en **Base64** (solo letras, números, `+`, `/` y `=`). Un valor con guiones o espacios hace que `auth-service` no arranque (`Illegal base64 character`). En `.env` no escribas comentarios después del `=`.
+
+Genera un secreto válido:
+
+```bash
+openssl rand -base64 48
+```
+
+Variables obligatorias para Docker Compose:
 
 ```env
 JWT_SECRET=<secreto-base64>
-JWT_ISSUER_URI=http://localhost:8081
-JWT_JWK_SET_URI=http://localhost:8081/.well-known/jwks.json
-DB_USER=postgres
-DB_PASS=postgres
-RABBITMQ_HOST=localhost
-RABBITMQ_PORT=5672
-RABBITMQ_USER=guest
-RABBITMQ_PASS=guest
-CATALOG_SERVICE_URL=http://localhost:8085
-PRODUCT_SERVICE_URL=http://localhost:8082
+DB_USER=ferreteria
+DB_PASS=<contraseña-local>
+RABBITMQ_USER=ferreteria
+RABBITMQ_PASS=<contraseña-local>
+INTERNAL_API_SECRET=<secreto-interno>
 ```
 
-El conjunto completo disponible está en `.env.example`.
+`ADMIN_PASSWORD` y `DEMO_PASSWORD` pueden quedar vacías: en ese caso se conservan las contraseñas demo de las migraciones. El conjunto completo de variables está en `.env.example`.
 
-> Importante: las credenciales conocidas actuales son apropiadas únicamente para desarrollo local. Antes de desplegar, reemplázalas y elimina cualquier valor predeterminado conocido.
+> Las credenciales de este README son solo para desarrollo local. Antes de desplegar, reemplázalas por valores propios.
 
 ## Ejecución con Docker Compose
 
@@ -103,7 +111,7 @@ Desde la raíz del proyecto:
 docker compose up --build
 ```
 
-Levantar en segundo plano:
+La primera vez demora varios minutos porque compila los 7 servicios. Levantar en segundo plano:
 
 ```bash
 docker compose up --build -d
@@ -115,17 +123,15 @@ Detener los contenedores:
 docker compose down
 ```
 
-Eliminar también los volúmenes locales:
+Eliminar también los volúmenes locales (borra los datos):
 
 ```bash
 docker compose down -v
 ```
 
-El orden definido incluye PostgreSQL y RabbitMQ, seguido de los servicios de aplicación y el gateway. RabbitMQ Management queda disponible en:
+Los servicios de aplicación esperan a que PostgreSQL y RabbitMQ estén saludables. En los logs de PostgreSQL pueden aparecer líneas `FATAL: database "ferreteria" does not exist`: son del healthcheck y no afectan el funcionamiento.
 
-- <http://localhost:15672>
-- usuario: `guest`
-- contraseña: `guest`
+RabbitMQ Management queda disponible en <http://localhost:15672> con el usuario y la contraseña definidos en `RABBITMQ_USER` y `RABBITMQ_PASS`.
 
 ## Ejecución local sin Docker
 
@@ -141,7 +147,7 @@ Levanta una instancia de PostgreSQL por dominio y RabbitMQ. Después, ajusta las
 ./mvnw spring-boot:run -pl api-gateway
 ```
 
-En Windows, usa `mvnw.cmd`.
+En Windows, usa `.\mvnw.cmd`.
 
 ## Compilar y probar
 
@@ -157,36 +163,44 @@ Probar un módulo específico:
 ./mvnw test -pl product-service
 ```
 
-Limpiar artefactos Maven:
+El repositorio incluye un flujo de GitHub Actions (`.github/workflows/ci.yml`) que compila, ejecuta las pruebas y construye la imagen Docker de cada servicio en cada push y pull request a `master`.
 
-```bash
-./mvnw clean
-```
+## Usuarios de demostración
+
+| Rol      | Correo                      | Contraseña |
+| -------- | --------------------------- | ---------- |
+| ADMIN    | `admin@duoc.cl`             | `demo123`  |
+| VENDEDOR | `vendedor@profesor.duoc.cl` | `demo123`  |
+| CLIENTE  | `cliente@gmail.com`         | `demo123`  |
+
+Estos valores aplican cuando `ADMIN_PASSWORD` y `DEMO_PASSWORD` están vacías en `.env`. Si las defines, los usuarios semilla usan esas contraseñas.
 
 ## Acceso a las APIs
 
-Todas las rutas públicas se consumen preferentemente a través del gateway:
+Todas las rutas se consumen a través del gateway:
 
 ```text
-http://localhost:8080/api
+http://localhost:8180/api
 ```
 
 Las rutas principales son:
 
-| Dominio | Ruta |
-|---|---|
-| Autenticación | `/api/auth/**` |
-| Productos | `/api/products/**` |
-| Categorías e imágenes | `/api/categories/**`, `/api/images/**` |
-| Pedidos y pagos | `/api/orders/**`, `/api/payments/**` |
-| Usuarios | `/api/users/**`, `/api/usuarios/**` |
-| Direcciones | `/api/usuarios/{usuarioId}/direcciones/**` |
-| Cuenta corriente | `/api/cuentas-corrientes/**` |
-| Regiones y comunas | `/api/regions/**`, `/api/communes/**` |
-| Cobertura de despacho | `/api/coverage/**` |
-| Carrito | `/api/cart/**` |
+| Dominio               | Ruta                                       |
+| --------------------- | ------------------------------------------ |
+| Autenticación         | `/api/auth/**`                             |
+| Productos             | `/api/products/**`                         |
+| Categorías e imágenes | `/api/categories/**`, `/api/images/**`     |
+| Pedidos y pagos       | `/api/orders/**`, `/api/payments/**`       |
+| Usuarios              | `/api/users/**`, `/api/usuarios/**`        |
+| Direcciones           | `/api/usuarios/{usuarioId}/direcciones/**` |
+| Cuenta corriente      | `/api/cuentas-corrientes/**`               |
+| Regiones y comunas    | `/api/regions/**`, `/api/communes/**`      |
+| Cobertura de despacho | `/api/coverage/**`                         |
+| Carrito               | `/api/cart/**`                             |
 
-Los endpoints privados esperan un access token:
+Las rutas `v2` (`/api/products/v2`, `/api/users/v2`, `/api/auth/v2`, regiones, comunas y cobertura) devuelven respuestas HATEOAS de solo lectura.
+
+Rutas públicas (sin token): login, registro, refresh, y las consultas `GET` de productos, categorías, imágenes, regiones, comunas y cobertura. El resto exige un access token:
 
 ```http
 Authorization: Bearer <accessToken>
@@ -195,34 +209,33 @@ Authorization: Bearer <accessToken>
 Ejemplo de autenticación:
 
 ```bash
-curl -X POST http://localhost:8080/api/auth/login \
+curl -X POST http://localhost:8180/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"usuario@example.com","password":"ContraseñaSegura123!"}'
+  -d '{"email":"admin@duoc.cl","password":"demo123"}'
 ```
 
-Respuesta esperada: JSON con `accessToken` y `refreshToken`. Los nombres exactos deben confirmarse en la implementación de `AuthController` antes de integrar el frontend.
+Respuesta esperada: JSON con `accessToken` y `refreshToken`.
 
 ## Swagger/OpenAPI
 
-Cada servicio expone SpringDoc en su puerto directo, normalmente:
+Cada servicio expone SpringDoc en su puerto directo:
 
-```text
-http://localhost:<puerto>/api/swagger-ui.html
-```
+| Servicio | Swagger UI (Docker Compose)                 |
+| -------- | ------------------------------------------- |
+| Auth     | <http://localhost:8181/api/swagger-ui.html> |
+| Product  | <http://localhost:8182/api/swagger-ui.html> |
+| Order    | <http://localhost:8183/api/swagger-ui.html> |
+| User     | <http://localhost:8184/api/swagger-ui.html> |
+| Catalog  | <http://localhost:8185/api/swagger-ui.html> |
+| Cart     | <http://localhost:8186/api/swagger-ui.html> |
 
-La especificación OpenAPI suele estar disponible en:
+La especificación OpenAPI está en `http://localhost:<puerto>/api/v3/api-docs`.
 
-```text
-http://localhost:<puerto>/api/v3/api-docs
-```
+Para probar endpoints protegidos desde Swagger:
 
-Ejemplos:
-
-- <http://localhost:8081/api/swagger-ui.html>
-- <http://localhost:8082/api/swagger-ui.html>
-- <http://localhost:8080/actuator/gatewayroutes>
-
-Swagger puede deshabilitarse o protegerse en producción.
+1. En Swagger de `auth-service`, ejecuta `POST /auth/login` y copia el `accessToken`.
+2. En cualquier Swagger, presiona **Authorize**, pega el token **sin** la palabra `Bearer` y confirma.
+3. Ejecuta el endpoint protegido. Sin token responde `401`.
 
 ## Migraciones de base de datos
 
@@ -239,8 +252,7 @@ Las bases se crean desde las variables de Docker Compose. Los volúmenes preserv
 Gateway:
 
 ```bash
-curl http://localhost:8080/actuator/health
-curl http://localhost:8080/actuator/gatewayroutes
+curl http://localhost:8180/actuator/health
 ```
 
 Ver contenedores:
@@ -261,23 +273,7 @@ docker compose logs -f auth-service
 - Enviar `Authorization: Bearer <accessToken>` en rutas privadas.
 - Tratar los UUID como cadenas.
 - No enviar precios, nombres de producto, IVA ni costo de envío calculado por el cliente.
-- Asociar la identidad del usuario al JWT y no confiar en `userId` enviado por el cliente en operaciones sensibles.
-- Usar `Idempotency-Key` para operaciones de compra repetibles cuando el contrato esté implementado completamente.
-
-## Estado conocido y riesgos
-
-Antes de publicar o desplegar se deben revisar especialmente:
-
-- secretos y contraseñas conocidas en configuración local;
-- exposición de rutas internas a través del gateway;
-- eliminación de cabeceras internas falsas recibidas del cliente;
-- autorización por propietario en usuarios, carrito y pedidos;
-- concurrencia de stock y cuentas corrientes;
-- idempotencia real de pedidos;
-- integraciones HTTP y eventos RabbitMQ;
-- consistencia de precios, estados y pagos.
-
-La hoja de trabajo completa está en `GUIA_FINAL_BACKEND.md`.
+- La identidad del usuario se toma del JWT; no se confía en un `userId` enviado por el cliente en operaciones sensibles.
 
 ## Preparación de commits
 
@@ -296,5 +292,3 @@ No confirmar:
 - archivos `*.jar`, `*.war` o `*.class`;
 - credenciales reales;
 - volúmenes o datos locales.
-
-El `.gitignore` actual excluye `.env`, `target/` y artefactos de compilación.
