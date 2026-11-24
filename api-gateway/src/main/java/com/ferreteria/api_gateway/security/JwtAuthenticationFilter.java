@@ -75,11 +75,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 || path.equals("/api/auth/refresh")
                 || path.startsWith("/api/auth/refresh/")
                 || path.equals("/api/auth/validate")
-                || path.startsWith("/api/auth/validate/")
-                || path.equals("/api/users/v2")
-                || path.startsWith("/api/users/v2/")
-                || path.equals("/api/usuarios/v2")
-                || path.startsWith("/api/usuarios/v2/")) {
+                || path.startsWith("/api/auth/validate/")) {
             return true;
         }
 
@@ -94,11 +90,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     || path.startsWith("/api/communes/")
                     || path.equals("/api/communes")
                     || path.startsWith("/api/coverage/")
-                    || path.equals("/api/coverage")
-                    || path.matches("^/api/users/(?:[^/]+)/exists$")
-                    || path.matches("^/api/usuarios/(?:[^/]+)/exists$")
-                    || path.startsWith("/api/users/email/")
-                    || path.startsWith("/api/usuarios/email/");
+                    || path.equals("/api/coverage");
         }
 
         return false;

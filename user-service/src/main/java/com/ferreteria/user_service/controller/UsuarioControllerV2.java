@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
 import org.springframework.hateoas.MediaTypes;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,6 +29,7 @@ public class UsuarioControllerV2 {
     private final UsuarioModelAssembler assembler;
 
     @GetMapping(produces = MediaTypes.HAL_JSON_VALUE)
+    @PreAuthorize("hasRole('ADMIN') or hasRole('VENDEDOR')")
     public CollectionModel<EntityModel<UsuarioResponseDTO>> listar(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -47,11 +49,13 @@ public class UsuarioControllerV2 {
     }
 
     @GetMapping(value = "/{id}", produces = MediaTypes.HAL_JSON_VALUE)
+    @PreAuthorize("hasRole('ADMIN') or #id.toString() == authentication.name")
     public EntityModel<UsuarioResponseDTO> buscarPorId(@PathVariable UUID id) {
         return assembler.toModel(usuarioService.obtenerPorId(id));
     }
 
     @GetMapping(value = "/email/{email}", produces = MediaTypes.HAL_JSON_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
     public EntityModel<UsuarioResponseDTO> buscarPorEmail(@PathVariable String email) {
         return assembler.toModel(usuarioService.obtenerPorEmail(email));
     }

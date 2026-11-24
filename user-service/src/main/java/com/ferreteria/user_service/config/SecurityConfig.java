@@ -45,10 +45,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET,
-                                "/users/*/exists", "/users/email/**",
-                                "/usuarios/*/exists", "/usuarios/email/**",
-                                "/users/v2/**", "/usuarios/v2/**").permitAll()
                         .requestMatchers("/internal/**").authenticated()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
