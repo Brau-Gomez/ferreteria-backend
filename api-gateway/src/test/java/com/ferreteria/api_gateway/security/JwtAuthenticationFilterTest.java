@@ -136,6 +136,38 @@ class JwtAuthenticationFilterTest {
         assertThat(chained).isTrue();
     }
 
+    @Test
+    void userListV2WithoutTokenReturnsUnauthorized() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtService);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.method(HttpMethod.GET, "/api/users/v2").build());
+        AtomicBoolean chained = new AtomicBoolean();
+
+        filter.filter(exchange, ignored -> {
+            chained.set(true);
+            return reactor.core.publisher.Mono.empty();
+        }).block();
+
+        assertThat(chained).isFalse();
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void userLookupByEmailWithoutTokenReturnsUnauthorized() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtService);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.method(HttpMethod.GET, "/api/users/email/cliente@gmail.com").build());
+        AtomicBoolean chained = new AtomicBoolean();
+
+        filter.filter(exchange, ignored -> {
+            chained.set(true);
+            return reactor.core.publisher.Mono.empty();
+        }).block();
+
+        assertThat(chained).isFalse();
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
     private String crearAccessToken() {
         byte[] keyBytes = Base64.getDecoder().decode(SECRET);
         SecretKey key = Keys.hmacShaKeyFor(keyBytes);
