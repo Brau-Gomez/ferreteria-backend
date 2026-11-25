@@ -78,13 +78,14 @@ public class OrderService {
                     .build();
         }).collect(Collectors.toCollection(ArrayList::new)); // Hibernate necesita una colección mutable
 
-        // Calcular totales
-        BigDecimal subtotal = items.stream()
+        // Calcular totales: los precios de los productos ya incluyen IVA (19%)
+        BigDecimal bruto = items.stream()
                 .map(OrderItem::getTotalPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal tax = subtotal.multiply(BigDecimal.valueOf(0.19)).setScale(0, RoundingMode.HALF_UP); // IVA 19%, redondeado a pesos enteros
-        BigDecimal shippingCost = calculateShippingCost(subtotal, request.getShippingCommuneId());
-        BigDecimal total = subtotal.add(tax).add(shippingCost);
+        BigDecimal subtotal = bruto.divide(BigDecimal.valueOf(1.19), 0, RoundingMode.HALF_UP); // neto
+        BigDecimal tax = bruto.subtract(subtotal); // IVA incluido en el precio
+        BigDecimal shippingCost = calculateShippingCost(bruto, request.getShippingCommuneId());
+        BigDecimal total = bruto.add(shippingCost);
 
         Order order = Order.builder()
                 .userId(userId)
