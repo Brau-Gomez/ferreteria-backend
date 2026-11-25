@@ -22,6 +22,7 @@ public class OrderResponseDTO {
 
     private UUID id;
     private UUID userId;
+    private String customerEmail;
     private String status;
     private BigDecimal subtotal;
     private BigDecimal tax;
@@ -49,6 +50,7 @@ public class OrderResponseDTO {
         OrderResponseDTO dto = OrderResponseDTO.builder()
                 .id(order.getId())
                 .userId(order.getUserId())
+                .customerEmail(order.getCustomerEmail())
                 .status(order.getStatus() != null ? order.getStatus().name() : null)
                 .subtotal(order.getSubtotal())
                 .tax(order.getTax())
@@ -88,15 +90,19 @@ public class OrderResponseDTO {
         return dto;
     }
 
-    // Versión ligera para listados
+    // Versión ligera para listados (incluye productos y notas para reportes e historial)
     public static OrderResponseDTO fromEntityLite(Order order) {
         return OrderResponseDTO.builder()
                 .id(order.getId())
                 .userId(order.getUserId())
+                .customerEmail(order.getCustomerEmail())
                 .status(order.getStatus() != null ? order.getStatus().name() : null)
                 .total(order.getTotal())
                 .shippingAddress(order.getShippingAddress())
                 .trackingNumber(order.getTrackingNumber())
+                .notes(order.getNotes())
+                .items(order.getItems() == null ? List.of()
+                        : order.getItems().stream().map(OrderItemResponseDTO::fromEntity).toList())
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .build();

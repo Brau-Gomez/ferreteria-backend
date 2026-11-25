@@ -31,6 +31,9 @@ public class OrderRequestDTO {
     @Size(max = 1000, message = "Las notas no pueden exceder 1000 caracteres")
     private String notes;
 
+    // Lo asigna el controlador desde el token; se ignora lo que envíe el cliente.
+    private String customerEmail;
+
     @Data
     public static class OrderItemRequestDTO {
 

@@ -40,6 +40,12 @@ public class CuentaCorrienteController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @GetMapping("/me")
+    @Operation(summary = "Obtener la cuenta corriente del usuario autenticado (contratista)")
+    public ResponseEntity<CuentaCorrienteResponseDTO> obtenerMia(@AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(cuentaCorrienteService.obtenerPorEmail(jwt.getClaimAsString("email")));
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Obtener cuenta corriente por ID")
     public ResponseEntity<CuentaCorrienteResponseDTO> obtenerPorId(

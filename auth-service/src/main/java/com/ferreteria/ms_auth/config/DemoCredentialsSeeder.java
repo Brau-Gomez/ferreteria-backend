@@ -19,7 +19,7 @@ public class DemoCredentialsSeeder implements ApplicationRunner {
 
     private static final String ADMIN_EMAIL = "admin@ferreteria.local";
     private static final List<String> DEMO_EMAILS = List.of(
-            "admin@duoc.cl", "vendedor@profesor.duoc.cl", "cliente@gmail.com");
+            "admin@duoc.cl", "vendedor@profesor.duoc.cl", "cliente@gmail.com", "contratista@gmail.com");
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;

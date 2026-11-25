@@ -27,6 +27,9 @@ public class Order {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
+    @Column(name = "customer_email", length = 255)
+    private String customerEmail;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private OrderStatus status = OrderStatus.PENDING;

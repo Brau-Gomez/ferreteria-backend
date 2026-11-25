@@ -89,6 +89,7 @@ public class OrderService {
 
         Order order = Order.builder()
                 .userId(userId)
+                .customerEmail(request.getCustomerEmail())
                 .status(Order.OrderStatus.PENDING)
                 .subtotal(subtotal)
                 .tax(tax)

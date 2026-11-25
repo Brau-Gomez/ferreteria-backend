@@ -41,6 +41,7 @@ public class OrderController {
             @AuthenticationPrincipal Jwt jwt,
             HttpServletRequest httpRequest) {
         UUID userId = getUserIdFromToken(jwt);
+        request.setCustomerEmail(jwt.getClaimAsString("email"));
         OrderResponseDTO response = orderService.crear(userId, request, idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
