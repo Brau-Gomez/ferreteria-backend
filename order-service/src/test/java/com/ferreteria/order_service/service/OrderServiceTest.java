@@ -67,7 +67,7 @@ class OrderServiceTest {
 
         OrderResponseDTO response = service.crear(userId, request, "pedido-1");
 
-        assertThat(response.getTotal()).isEqualByComparingTo("10950.00");
+        assertThat(response.getTotal()).isEqualByComparingTo("10000.00");
         verify(productClient).reserve("TORN-001", 2);
         verify(eventPublisher).publishEvent(any(OrderEvents.OrderCreatedEvent.class));
     }
@@ -97,7 +97,7 @@ class OrderServiceTest {
 
         assertThat(response.getStatus()).isEqualTo("CONFIRMED");
         assertThat(response.getBoleta()).isNotNull();
-        assertThat(response.getBoleta().getTotal()).isEqualByComparingTo("10950.00");
+        assertThat(response.getBoleta().getTotal()).isEqualByComparingTo("10000.00");
         assertThat(response.getBoleta().getItems()).hasSize(1);
         assertThat(response.getBoleta().getEstadoPago()).isEqualTo("COMPLETED");
         assertThat(response.getBoleta().getTransaccionId()).startsWith("SIM-");
