@@ -100,6 +100,23 @@ public class CuentaCorrienteService {
         return CuentaCorrienteResponseDTO.fromEntity(cuenta);
     }
 
+
+        /**
+     * Cuenta corriente del usuario autenticado, buscada por su correo.
+     * auth-service y user-service usan ids distintos; el correo es el dato común.
+     */
+    @Transactional(readOnly = true)
+    public CuentaCorrienteResponseDTO obtenerPorEmail(String email) {
+        if (email == null || email.isBlank()) {
+            throw new BadRequestException("El token no contiene el correo del usuario");
+        }
+        Usuario usuario = usuarioRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado: " + email));
+        CuentaCorriente cuenta = cuentaCorrienteRepository.findByUsuarioId(usuario.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("El usuario no tiene cuenta corriente"));
+        return CuentaCorrienteResponseDTO.fromEntity(cuenta);
+    }
+    
     @Transactional(readOnly = true)
     public CuentaCorrienteResponseDTO obtenerPorUsuarioId(UUID usuarioId, UUID autenticado,
                                                           boolean puedeAdministrar) {
