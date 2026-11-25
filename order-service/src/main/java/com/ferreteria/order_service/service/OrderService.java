@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,7 +82,7 @@ public class OrderService {
         BigDecimal subtotal = items.stream()
                 .map(OrderItem::getTotalPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal tax = subtotal.multiply(BigDecimal.valueOf(0.19)); // IVA 19%
+        BigDecimal tax = subtotal.multiply(BigDecimal.valueOf(0.19)).setScale(0, RoundingMode.HALF_UP); // IVA 19%, redondeado a pesos enteros
         BigDecimal shippingCost = calculateShippingCost(subtotal, request.getShippingCommuneId());
         BigDecimal total = subtotal.add(tax).add(shippingCost);
 
