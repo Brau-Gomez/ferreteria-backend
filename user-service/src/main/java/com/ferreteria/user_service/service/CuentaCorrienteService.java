@@ -87,7 +87,7 @@ public class CuentaCorrienteService {
     public CuentaCorrienteResponseDTO obtenerPorId(UUID id, UUID userId, boolean puedeAdministrar) {
         CuentaCorriente cuenta = obtenerCuenta(id);
         if (!puedeAdministrar
-                && (cuenta.getUsuario() == null || !userId.equals(cuenta.getUsuario().getId()))) {
+                && (cuenta.getUsuario() == null || !cuenta.getUsuario().getId().equals(userId))) {
             throw new BadRequestException("No tienes permiso para consultar esta cuenta corriente");
         }
         return CuentaCorrienteResponseDTO.fromEntity(cuenta);

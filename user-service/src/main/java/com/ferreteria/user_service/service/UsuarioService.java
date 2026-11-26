@@ -41,13 +41,19 @@ public class UsuarioService {
             throw new BadRequestException("El RUT ya está registrado");
         }
 
+        // El perfil creado desde el panel no inicia sesión por sí mismo (eso es de
+        // auth-service): si no llega contraseña se guarda una aleatoria.
+        String password = (request.getPassword() == null || request.getPassword().isBlank())
+                ? UUID.randomUUID().toString()
+                : request.getPassword();
+
         Usuario usuario = Usuario.builder()
                 .email(request.getEmail())
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .passwordHash(passwordEncoder.encode(password))
                 .nombreCompleto(request.getNombreCompleto())
-                .telefono(request.getTelefono())
+                .telefono(request.getTelefono() == null ? "" : request.getTelefono())
                 .rut(request.getRut())
-                .rol(request.getRol())
+                .rol(request.getRol() == null ? Usuario.Rol.CLIENTE : request.getRol())
                 .estado(Usuario.EstadoUsuario.ACTIVO)
                 .emailVerificado(false)
                 .build();
@@ -132,9 +138,13 @@ public class UsuarioService {
             usuario.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
         usuario.setNombreCompleto(request.getNombreCompleto());
-        usuario.setTelefono(request.getTelefono());
+        if (request.getTelefono() != null && !request.getTelefono().isBlank()) {
+            usuario.setTelefono(request.getTelefono());
+        }
         usuario.setRut(request.getRut());
-        usuario.setRol(request.getRol());
+        if (request.getRol() != null) {
+            usuario.setRol(request.getRol());
+        }
 
         Usuario actualizado = usuarioRepository.save(usuario);
         log.info("Usuario actualizado id={}", id);
