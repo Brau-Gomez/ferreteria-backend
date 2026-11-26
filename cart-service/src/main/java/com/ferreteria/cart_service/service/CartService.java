@@ -3,12 +3,14 @@ package com.ferreteria.cart_service.service;
 import com.ferreteria.cart_service.client.ProductClient;
 import com.ferreteria.cart_service.client.ProductDTO;
 import com.ferreteria.cart_service.dto.*;
+import com.ferreteria.cart_service.event.CartEvents;
 import com.ferreteria.cart_service.exception.BadRequestException;
 import com.ferreteria.cart_service.exception.ResourceNotFoundException;
 import com.ferreteria.cart_service.model.CartItem;
 import com.ferreteria.cart_service.repository.CartItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,7 @@ import java.util.List;
 public class CartService {
     private final CartItemRepository repository;
     private final ProductClient productClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${cart.max-items:100}")
     private int maxItems = 100;
@@ -43,7 +46,7 @@ public class CartService {
         ProductDTO product = productClient.getByCode(request.getCode());
         validateProduct(product, request.getQuantity());
 
-        return repository.findByUserIdAndProductCode(userId, request.getCode())
+        CartItemResponseDTO response = repository.findByUserIdAndProductCode(userId, request.getCode())
                 .map(existing -> {
                     int newQuantity = existing.getQuantity() + request.getQuantity();
                     validateProduct(product, newQuantity);
@@ -63,6 +66,8 @@ public class CartService {
                             .build();
                     return toResponse(repository.save(item), product);
                 });
+        eventPublisher.publishEvent(CartEvents.CartItemAddedEvent.of(userId, request.getCode()));
+        return response;
     }
 
     @Transactional
@@ -81,11 +86,13 @@ public class CartService {
         CartItem item = repository.findByUserIdAndProductCode(userId, code)
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no existe en el carrito"));
         repository.delete(item);
+        eventPublisher.publishEvent(CartEvents.CartItemRemovedEvent.of(userId, code));
     }
 
     @Transactional
     public void clearCart(String userId) {
         repository.deleteByUserId(userId);
+        eventPublisher.publishEvent(CartEvents.CartClearedEvent.of(userId));
     }
 
     private void validateProduct(ProductDTO product, int quantity) {
