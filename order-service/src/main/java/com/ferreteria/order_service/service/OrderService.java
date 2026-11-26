@@ -156,9 +156,9 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public OrderResponseDTO obtenerPorId(UUID id, UUID userId, boolean isAdmin) {
+    public OrderResponseDTO obtenerPorId(UUID id, UUID userId, boolean puedeVerCualquiera) {
         Order order = obtenerOrden(id);
-        verificarPropietarioOAdmin(order, userId, isAdmin);
+        verificarPropietarioOAdmin(order, userId, puedeVerCualquiera);
         return OrderResponseDTO.fromEntity(order);
     }
 

@@ -9,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -49,5 +50,14 @@ class OrderControllerTest {
 
         verify(orderService).listarPorUsuario(any(), eq(0), eq(20), eq("createdAt"), eq("desc"), isNull());
         verify(orderService, never()).listarTodas(anyInt(), anyInt(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void elVendedorPuedeVerElDetalleDeCualquierOrden() {
+        UUID id = UUID.randomUUID();
+
+        controller.obtenerPorId(id, jwtConRol("VENDEDOR"));
+
+        verify(orderService).obtenerPorId(eq(id), any(), eq(true));
     }
 }
