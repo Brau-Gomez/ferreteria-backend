@@ -51,7 +51,7 @@ public class CuentaCorrienteController {
     public ResponseEntity<CuentaCorrienteResponseDTO> obtenerPorId(
             @Parameter(description = "ID de la cuenta corriente") @PathVariable UUID id,
             @AuthenticationPrincipal Jwt jwt) {
-        UUID userId = UUID.fromString(jwt.getSubject());
+        UUID userId = idDelToken(jwt);
         boolean puedeAdministrar = tieneRol(jwt, "ADMIN") || tieneRol(jwt, "VENDEDOR");
         return ResponseEntity.ok(cuentaCorrienteService.obtenerPorId(id, userId, puedeAdministrar));
     }
@@ -61,7 +61,7 @@ public class CuentaCorrienteController {
     public ResponseEntity<CuentaCorrienteResponseDTO> obtenerPorUsuarioId(
             @Parameter(description = "ID del usuario") @PathVariable UUID usuarioId,
             @AuthenticationPrincipal Jwt jwt) {
-        UUID userId = UUID.fromString(jwt.getSubject());
+        UUID userId = idDelToken(jwt);
         boolean puedeAdministrar = tieneRol(jwt, "ADMIN") || tieneRol(jwt, "VENDEDOR");
         return ResponseEntity.ok(cuentaCorrienteService.obtenerPorUsuarioId(
                 usuarioId, userId, puedeAdministrar));
@@ -160,6 +160,16 @@ public class CuentaCorrienteController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void eliminar(@Parameter(description = "ID de la cuenta corriente") @PathVariable UUID id) {
         cuentaCorrienteService.eliminar(id);
+    }
+
+    // auth-service usa ids numéricos en "sub"; si no es un UUID no corresponde a un
+    // usuario de este servicio (solo ADMIN/VENDEDOR podrán consultar en ese caso).
+    private UUID idDelToken(Jwt jwt) {
+        try {
+            return UUID.fromString(jwt.getSubject());
+        } catch (IllegalArgumentException | NullPointerException ex) {
+            return null;
+        }
     }
 
     private boolean tieneRol(Jwt jwt, String rol) {

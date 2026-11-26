@@ -20,11 +20,13 @@ public class PaymentSimulatorController {
                 ? ""
                 : request.getNumeroTarjeta().replaceAll("\\D", "");
 
-        boolean aprobado = numero.length() >= 12 && !"000000000000".equals(numero);
+        // Regla de la simulación (la misma que anuncia el checkout): una tarjeta
+        // terminada en 0000 es rechazada por el banco.
+        boolean aprobado = numero.length() >= 12 && !numero.endsWith("0000");
         return ResponseEntity.ok(Map.of(
                 "aprobado", aprobado,
                 "estado", aprobado ? "APROBADO" : "RECHAZADO",
-                "mensaje", aprobado ? "Pago aprobado" : "Pago rechazado",
+                "mensaje", aprobado ? "Pago aprobado." : "El banco rechazó la tarjeta.",
                 "monto", request.getMonto() == null ? BigDecimal.ZERO : request.getMonto(),
                 "moneda", request.getMoneda() == null ? "CLP" : request.getMoneda()
         ));
