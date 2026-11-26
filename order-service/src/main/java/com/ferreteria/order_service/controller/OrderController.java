@@ -51,7 +51,7 @@ public class OrderController {
             @Parameter(description = "ID de la orden") @PathVariable UUID id,
             @AuthenticationPrincipal Jwt jwt) {
         UUID userId = getUserIdFromToken(jwt);
-        return ResponseEntity.ok(orderService.obtenerPorId(id, userId, esAdmin(jwt)));
+        return ResponseEntity.ok(orderService.obtenerPorId(id, userId, esAdmin(jwt) || esVendedor(jwt)));
     }
 
     @GetMapping
