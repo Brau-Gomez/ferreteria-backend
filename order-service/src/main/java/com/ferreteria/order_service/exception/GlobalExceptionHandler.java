@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -81,6 +82,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<String>> handleEntityNotFound(EntityNotFoundException ex) {
         log.warn("Entidad no encontrada: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("NOT_FOUND", ex.getMessage()));
+    }
+
+    // Rol sin permiso (@PreAuthorize): 403, no 500. Sin esto lo atrapaba el manejador genérico.
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<String>> handleAccessDenied(AccessDeniedException ex) {
+        log.warn("Acceso denegado: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("FORBIDDEN", "No tienes permiso para realizar esta acción"));
     }
 
     @ExceptionHandler(Exception.class)
